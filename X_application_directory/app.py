@@ -2,7 +2,7 @@ __version__ = "0.0.01"
 app_name = "LibertyGPT Sandbox"
 
 import streamlit as st
-st.set_page_config(page_title="LibertyGPT Sandbox", layout='centered')
+st.set_page_config(page_title="LibertyGPT Sandbox", layout='wide')
 st.title('LibertyGPT Sandbox')
 from llama_index import LLMPredictor, ServiceContext, StorageContext, load_index_from_storage
 from langchain.llms import OpenAI
@@ -18,9 +18,6 @@ from llama_index.query_engine import RetrieverQueryEngine
 ho3_directory = "../_policy_index_metadatas"
 doi_directory = "../_index_storage"
 uniform_building_codes = "../_property_index_storage"
-
-ss = st.session_state
-if 'debug' not in ss: ss['debug'] = {}
 
 
 st.write("This sandbox is powered by :statue_of_liberty:**LibertyGPT**, 🦜[LangChain](https://langchain-langchain.vercel.app/docs/get_started/introduction.html) and :llama:[Llama-Index](https://gpt-index.readthedocs.io/en/latest/index.html)", 
@@ -55,25 +52,25 @@ bldg_code_index = initialize_index(storage_directory=uniform_building_codes)
 ho3_agent_tool = [
     Tool(
         name="ho3_query_engine",
-        func=lambda q: ho3_index.as_query_engine(
+        func=lambda q: str(ho3_index.as_query_engine(
             similarity_top_k=5,
-            streaming=True).query(q),
+            streaming=True).query(q)),
         description="useful for when you want to answer questions about homeowner's insurance coverage.",
         return_direct=False,
     ),
     Tool(
         name="doi_query_engine",
-        func=lambda q: doi_index.as_query_engine(
+        func=lambda q: str(doi_index.as_query_engine(
             similarity_top_k=5,
-            streaming=True).query(q),
+            streaming=True).query(q)),
         description="useful for when you want to answer questions about insurance regulation such as rules, regulations, or statutes.",
         return_direct=False,
     ),
         Tool(
         name="bldg_codes_query_engine",
-        func=lambda q: bldg_code_index.as_query_engine(
+        func=lambda q: str(bldg_code_index.as_query_engine(
             similarity_top_k=5,
-            streaming=True).query(q),
+            streaming=True).query(q)),
         description="useful for when you want to answer technical questions about building, consruction, and renovation requirements.",
         return_direct=False,
     ),

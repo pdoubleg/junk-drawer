@@ -2,74 +2,96 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(page_title="MRKL", page_icon="🦜", layout="wide")
-
-"# 🦜MRKL"
+st.set_page_config(page_title="LibertyGPT Sandbox", layout='wide')
+st.title('LibertyGPT Sandbox:  🦜MRKL')
 
 """
 This Streamlit app showcases a LangChain agent that replicates the "Modular Reasoning, Knowledge and Language system", aka the
 [MRKL chain](https://arxiv.org/abs/2205.00445).
 
-This uses the [example Chinook database](https://github.com/lerocha/chinook-database).
-The Chinook data model represents a digital media store, including tables for artists, albums, media tracks, invoices and customers.
-
 """
 
-with st.expander("👉 View the source code"), st.echo():
-    # LangChain imports
-    from langchain import (
-        LLMMathChain,
-        OpenAI,
-        SQLDatabase,
-        SQLDatabaseChain,
+from langchain import OpenAI
+from langchain.agents import AgentType
+from langchain.agents import initialize_agent, Tool
+from langchain.callbacks import StreamlitCallbackHandler
+
+from callbacks.capturing_callback_handler import playback_callbacks
+from callbacks.clear_results import with_clear_container
+
+
+llm = OpenAI(temperature=0, streaming=True)
+
+from llama_index import LLMPredictor, ServiceContext, StorageContext, load_index_from_storage
+from langchain.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import AgentType, Tool, initialize_agent, load_tools
+    
+ho3_directory = "../_policy_index_metadatas"
+doi_directory = "../_index_storage"
+uniform_building_codes = "../_property_index_storage"   
+    
+    
+def get_llm(temperature=0):
+    return ChatOpenAI(temperature=temperature, model="gpt-3.5-turbo")
+
+
+def get_llm_predictor(temperature=0):
+    return LLMPredictor(ChatOpenAI(temperature=temperature, model="gpt-3.5-turbo"))
+
+
+def initialize_index(storage_directory):
+    llm = get_llm_predictor()
+
+    service_context = ServiceContext.from_defaults(llm_predictor=llm)
+
+    index = load_index_from_storage(
+        StorageContext.from_defaults(persist_dir=storage_directory),
+        service_context=service_context,
     )
-    from langchain.agents import AgentType
-    from langchain.agents import initialize_agent, Tool
-    from langchain.callbacks import StreamlitCallbackHandler
-    from langchain.utilities import DuckDuckGoSearchAPIWrapper
+    return index
 
-    from callbacks.capturing_callback_handler import playback_callbacks
-    from callbacks.clear_results import with_clear_container
+ho3_index = initialize_index(storage_directory=ho3_directory)
+doi_index = initialize_index(storage_directory=doi_directory)
+bldg_code_index = initialize_index(storage_directory=uniform_building_codes)
 
-    # Tools setup
-    DB_PATH = (Path(__file__).parent / "Chinook.db").absolute()
 
-    llm = OpenAI(temperature=0, streaming=True)
-    search = DuckDuckGoSearchAPIWrapper()
-    llm_math_chain = LLMMathChain(llm=llm, verbose=True)
-    db = SQLDatabase.from_uri(f"sqlite:///{DB_PATH}")
-    db_chain = SQLDatabaseChain.from_llm(llm, db, verbose=True)
-    tools = [
+
+tools = [
+    Tool(
+        name="ho3_query_engine",
+        func=lambda q: str(ho3_index.as_query_engine(
+            similarity_top_k=5,
+            streaming=True).query(q)),
+        description="useful for when you want to answer questions about homeowner's insurance coverage.",
+        return_direct=False,
+    ),
+    Tool(
+        name="doi_query_engine",
+        func=lambda q: str(doi_index.as_query_engine(
+            similarity_top_k=5,
+            streaming=True).query(q)),
+        description="useful for when you want to answer questions about insurance regulation such as rules, regulations, or statutes.",
+        return_direct=False,
+    ),
         Tool(
-            name="Search",
-            func=search.run,
-            description="useful for when you need to answer questions about current events. You should ask targeted questions",
-        ),
-        Tool(
-            name="Calculator",
-            func=llm_math_chain.run,
-            description="useful for when you need to answer questions about math",
-        ),
-        Tool(
-            name="FooBar DB",
-            func=db_chain.run,
-            description="useful for when you need to answer questions about FooBar. Input should be in the form of a question containing full context",
-        ),
-    ]
+        name="bldg_codes_query_engine",
+        func=lambda q: str(bldg_code_index.as_query_engine(
+            similarity_top_k=5,
+            streaming=True).query(q)),
+        description="useful for when you want to answer technical questions about building, consruction, and renovation requirements.",
+        return_direct=False,
+    ),
+]
 
-    # Initialize agent
-    mrkl = initialize_agent(
-        tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
+
+mrkl = initialize_agent(
+        tools, 
+        llm, 
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, 
+        verbose=True
     )
-    # To run the agent, use `mrkl.run(mrkl_input)`
 
-# More Streamlit here!
-
-try_sample_questions = st.sidebar.checkbox(
-    "Try a Sample Question",
-    value=False,
-    help="Quick start samples",
-)
 
 expand_new_thoughts = st.sidebar.checkbox(
     "Expand New Thoughts",
@@ -86,17 +108,11 @@ collapse_completed_thoughts = st.sidebar.checkbox(
 
 max_thought_containers = st.sidebar.number_input(
     "Max Thought Containers",
-    value=4,
+    value=5,
     min_value=1,
     help="Max number of completed thoughts to show. When exceeded, older thoughts will be moved into a 'History' expander.",
 )
 
-SAVED_SESSIONS = {
-    "Who is Leo DiCaprio's girlfriend? What is her current age raised to the 0.43 power?": "leo.pickle",
-    "What is the full name of the artist who recently released an album called "
-    "'The Storm Before the Calm' and are they in the FooBar database? If so, what albums of theirs "
-    "are in the FooBar database?": "alanis.pickle",
-}
 
 key = "input"
 shadow_key = "_input"
@@ -105,16 +121,12 @@ if key in st.session_state and shadow_key not in st.session_state:
     st.session_state[shadow_key] = st.session_state[key]
 
 with st.form(key="form"):
-    if try_sample_questions:
-        "Ask one of the sample questions, or enter your API Keys in the sidebar to ask your own custom questions."
-    prefilled = st.selectbox("Sample questions", sorted(SAVED_SESSIONS.keys())) or ""
-    mrkl_input = ""
-
-    if not try_sample_questions:
-        mrkl_input = st.text_input("Or, ask your own question", key=shadow_key)
-        st.session_state[key] = mrkl_input
+    mrkl_input = st.text_input("Ask a question",
+                               label_visibility="collapsed",
+                               key=shadow_key)
+    st.session_state[key] = mrkl_input
     if not mrkl_input:
-        mrkl_input = prefilled
+        mrkl_input = ""
     submit_clicked = st.form_submit_button("Submit Question")
 
 question_container = st.empty()
@@ -134,16 +146,5 @@ if with_clear_container(submit_clicked):
 
     question_container.write(f"**Question:** {mrkl_input}")
 
-    # If we've saved this question, play it back instead of actually running LangChain
-    # (so that we don't exhaust our API calls unnecessarily)
-    if mrkl_input in SAVED_SESSIONS:
-        session_name = SAVED_SESSIONS[mrkl_input]
-        session_path = Path(__file__).parent / "runs" / session_name
-        print(f"Playing saved session: {session_path}")
-        answer = playback_callbacks(
-            [streamlit_handler], str(session_path), max_pause_time=3
-        )
-        res.write(f"**Answer:** {answer}")
-    else:
-        answer = mrkl.run(mrkl_input, callbacks=[streamlit_handler])
-        res.write(f"**Answer:** {answer}")
+    answer = mrkl.run(mrkl_input, callbacks=[streamlit_handler])
+    res.write(f"**Answer:** {answer}")
