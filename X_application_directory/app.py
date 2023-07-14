@@ -63,7 +63,7 @@ ho3_agent_tool = [
         func=lambda q: str(doi_index.as_query_engine(
             similarity_top_k=5,
             streaming=True).query(q)),
-        description="useful for when you want to answer questions about insurance regulation such as rules, regulations, or statutes.",
+        description="useful for when you want to answer questions about insurance regulation such as rules, requirements, or statutes.",
         return_direct=False,
     ),
         Tool(
@@ -71,7 +71,7 @@ ho3_agent_tool = [
         func=lambda q: str(bldg_code_index.as_query_engine(
             similarity_top_k=5,
             streaming=True).query(q)),
-        description="useful for when you want to answer technical questions about building, consruction, and renovation requirements.",
+        description="useful for when you want to answer technical questions about building consruction and renovation.",
         return_direct=False,
     ),
 ]
@@ -86,7 +86,7 @@ agent = initialize_agent(
     verbose=True
 )
 
-if prompt := st.chat_input():
+if prompt := st.text_input(label="Send a message"):
     st.chat_message("user").write(prompt)
     with st.chat_message("assistant"):
         st_callback = StreamlitCallbackHandler(st.container())

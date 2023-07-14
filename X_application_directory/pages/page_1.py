@@ -17,8 +17,6 @@ from langchain.agents import initialize_agent, Tool
 from langchain.callbacks import StreamlitCallbackHandler
 
 from callbacks.capturing_callback_handler import playback_callbacks
-from callbacks.clear_results import with_clear_container
-
 
 llm = OpenAI(temperature=0, streaming=True)
 
@@ -114,6 +112,14 @@ max_thought_containers = st.sidebar.number_input(
 )
 
 
+SAVED_SESSIONS = {
+    "Who is Leo DiCaprio's girlfriend? What is her current age raised to the 0.43 power?": "leo.pickle",
+    "What is the full name of the artist who recently released an album called "
+    "'The Storm Before the Calm' and are they in the FooBar database? If so, what albums of theirs "
+    "are in the FooBar database?": "alanis.pickle",
+}
+
+
 key = "input"
 shadow_key = "_input"
 
@@ -121,18 +127,23 @@ if key in st.session_state and shadow_key not in st.session_state:
     st.session_state[shadow_key] = st.session_state[key]
 
 with st.form(key="form"):
-    mrkl_input = st.text_input("Ask a question",
-                               label_visibility="collapsed",
-                               key=shadow_key)
+    # Ask one of the sample questions, or enter your API Keys in the sidebar to ask your own custom questions."
+    prefilled = st.selectbox("Sample questions", sorted(SAVED_SESSIONS.keys())) or ""
+    mrkl_input = ""
+
+    mrkl_input = st.text_input("Or, ask your own question", key=shadow_key)
     st.session_state[key] = mrkl_input
     if not mrkl_input:
-        mrkl_input = ""
+        mrkl_input = prefilled
     submit_clicked = st.form_submit_button("Submit Question")
 
-question_container = st.empty()
-results_container = st.empty()
+cols2 = st.columns(2, gap="small")
+with cols2[0]:
+    question_container = st.empty()
+    results_container = st.empty()
 
 # A hack to "clear" the previous result when submitting a new prompt.
+from callbacks.clear_results import with_clear_container
 
 if with_clear_container(submit_clicked):
     # Create our StreamlitCallbackHandler
@@ -146,5 +157,14 @@ if with_clear_container(submit_clicked):
 
     question_container.write(f"**Question:** {mrkl_input}")
 
-    answer = mrkl.run(mrkl_input, callbacks=[streamlit_handler])
-    res.write(f"**Answer:** {answer}")
+    if mrkl_input in SAVED_SESSIONS:
+        session_name = SAVED_SESSIONS[mrkl_input]
+        session_path = Path(__file__).parent / "runs" / session_name
+        print(f"Playing saved session: {session_path}")
+        answer = playback_callbacks(
+            [streamlit_handler], str(session_path), max_pause_time=3
+        )
+        res.write(f"**Answer:** {answer}")
+    else:
+        answer = mrkl.run(mrkl_input, callbacks=[streamlit_handler])
+        res.write(f"**Answer:** {answer}")

@@ -155,7 +155,7 @@ def generate_eval(text, N, chunk):
 
 
 def ui_index():
-    index_choice = ["Retriever", "Text-to-SQL Agent"]
+    index_choice = ["Simple Policy Retriever", "Simple DOI Code Retriever"]
     st.selectbox("Choose a Retriever Model", index_choice, key="index")
 
 
@@ -192,9 +192,9 @@ def b_index():
         "Initialize Model", key="init_index_1", type="primary", use_container_width=True
     ):
         selected_index = ss.get("index", "")
-        if selected_index == "Retriever":
+        if selected_index == "Simple Policy Retriever":
             ss["llama_index"] = initialize_index(storage_directory=(ho3_directory))
-        elif selected_index == "Placeholder":
+        elif selected_index == "Simple DOI Code Retriever":
             ss["llama_index"] = initialize_index(storage_directory=(doi_directory))
 
 
@@ -202,33 +202,22 @@ def ask():
     question = ss.get("question", "")
     selected_index = ss.get("index", "")
     index = ss.get("llama_index", {})
-    if selected_index == "Retriever":
+    if selected_index == "Simple Policy Retriever":
         response = index.as_query_engine().query(question)
         q = question.strip()
         a = str(response)
-        s = str(response.source_nodes[0].node.text)
+        s = str(response.source_nodes[0].node.get_text())
         ss["answer"] = a
         output_add(q, a)
         output_source(s)
-    elif selected_index == "Placeholder":
-        try:
-            question_obj = json.loads(question)
-            response = index.as_query_engine(synthesize_response=False).query(
-                question_obj
-            )
-            q = question.strip()
-            a = str(response)
-            s = response.extra_info["sql_query"]
-            ss["answer"] = a
-
-            output_add(q, a)
-            output_source(s)
-
-        except Exception as e:
-            q = "Error running SQL Query."
-            a = str(e)
-            ss["answer"] = a
-            output_add(q, a)
+    elif selected_index == "Simple DOI Code Retriever":
+        response = index.as_query_engine().query(question)
+        q = question.strip()
+        a = str(response)
+        s = str(response.source_nodes[0].node.get_text())
+        ss["answer"] = a
+        output_add(q, a)
+        output_source(s)
 
 
 def b_ask():
