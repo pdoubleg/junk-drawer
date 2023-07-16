@@ -28,6 +28,7 @@ def get_sql_index_tool(sql_index, table_context_dict):
 
 
 def get_llm(model_temperature):
+    from langchain.chat_models import ChatOpenAI
     os.environ["OPENAI_API_KEY"] = api_key
     return ChatOpenAI(temperature=model_temperature, model_name="gpt-3.5-turbo-0613")
 

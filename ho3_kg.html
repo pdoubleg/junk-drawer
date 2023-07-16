@@ -1,0 +1,444 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script>function neighbourhoodHighlight(params) {
+  // console.log("in nieghbourhoodhighlight");
+  allNodes = nodes.get({ returnType: "Object" });
+  // originalNodes = JSON.parse(JSON.stringify(allNodes));
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    highlightActive = true;
+    var i, j;
+    var selectedNode = params.nodes[0];
+    var degrees = 2;
+
+    // mark all nodes as hard to read.
+    for (let nodeId in allNodes) {
+      // nodeColors[nodeId] = allNodes[nodeId].color;
+      allNodes[nodeId].color = "rgba(200,200,200,0.5)";
+      if (allNodes[nodeId].hiddenLabel === undefined) {
+        allNodes[nodeId].hiddenLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+    var connectedNodes = network.getConnectedNodes(selectedNode);
+    var allConnectedNodes = [];
+
+    // get the second degree nodes
+    for (i = 1; i < degrees; i++) {
+      for (j = 0; j < connectedNodes.length; j++) {
+        allConnectedNodes = allConnectedNodes.concat(
+          network.getConnectedNodes(connectedNodes[j])
+        );
+      }
+    }
+
+    // all second degree nodes get a different color and their label back
+    for (i = 0; i < allConnectedNodes.length; i++) {
+      // allNodes[allConnectedNodes[i]].color = "pink";
+      allNodes[allConnectedNodes[i]].color = "rgba(150,150,150,0.75)";
+      if (allNodes[allConnectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[allConnectedNodes[i]].label =
+          allNodes[allConnectedNodes[i]].hiddenLabel;
+        allNodes[allConnectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // all first degree nodes get their own color and their label back
+    for (i = 0; i < connectedNodes.length; i++) {
+      // allNodes[connectedNodes[i]].color = undefined;
+      allNodes[connectedNodes[i]].color = nodeColors[connectedNodes[i]];
+      if (allNodes[connectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[connectedNodes[i]].label =
+          allNodes[connectedNodes[i]].hiddenLabel;
+        allNodes[connectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // the main node gets its own color and its label back.
+    // allNodes[selectedNode].color = undefined;
+    allNodes[selectedNode].color = nodeColors[selectedNode];
+    if (allNodes[selectedNode].hiddenLabel !== undefined) {
+      allNodes[selectedNode].label = allNodes[selectedNode].hiddenLabel;
+      allNodes[selectedNode].hiddenLabel = undefined;
+    }
+  } else if (highlightActive === true) {
+    // console.log("highlightActive was true");
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      // allNodes[nodeId].color = "purple";
+      allNodes[nodeId].color = nodeColors[nodeId];
+      // delete allNodes[nodeId].color;
+      if (allNodes[nodeId].hiddenLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].hiddenLabel;
+        allNodes[nodeId].hiddenLabel = undefined;
+      }
+    }
+    highlightActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    // console.log("Nothing was selected");
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        // allNodes[nodeId].color = {};
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function filterHighlight(params) {
+  allNodes = nodes.get({ returnType: "Object" });
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    filterActive = true;
+    let selectedNodes = params.nodes;
+
+    // hiding all nodes and saving the label
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = true;
+      if (allNodes[nodeId].savedLabel === undefined) {
+        allNodes[nodeId].savedLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+
+    for (let i=0; i < selectedNodes.length; i++) {
+      allNodes[selectedNodes[i]].hidden = false;
+      if (allNodes[selectedNodes[i]].savedLabel !== undefined) {
+        allNodes[selectedNodes[i]].label = allNodes[selectedNodes[i]].savedLabel;
+        allNodes[selectedNodes[i]].savedLabel = undefined;
+      }
+    }
+
+  } else if (filterActive === true) {
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = false;
+      if (allNodes[nodeId].savedLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].savedLabel;
+        allNodes[nodeId].savedLabel = undefined;
+      }
+    }
+    filterActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function selectNode(nodes) {
+  network.selectNodes(nodes);
+  neighbourhoodHighlight({ nodes: nodes });
+  return nodes;
+}
+
+function selectNodes(nodes) {
+  network.selectNodes(nodes);
+  filterHighlight({nodes: nodes});
+  return nodes;
+}
+
+function highlightFilter(filter) {
+  let selectedNodes = []
+  let selectedProp = filter['property']
+  if (filter['item'] === 'node') {
+    let allNodes = nodes.get({ returnType: "Object" });
+    for (let nodeId in allNodes) {
+      if (allNodes[nodeId][selectedProp] && filter['value'].includes((allNodes[nodeId][selectedProp]).toString())) {
+        selectedNodes.push(nodeId)
+      }
+    }
+  }
+  else if (filter['item'] === 'edge'){
+    let allEdges = edges.get({returnType: 'object'});
+    // check if the selected property exists for selected edge and select the nodes connected to the edge
+    for (let edge in allEdges) {
+      if (allEdges[edge][selectedProp] && filter['value'].includes((allEdges[edge][selectedProp]).toString())) {
+        selectedNodes.push(allEdges[edge]['from'])
+        selectedNodes.push(allEdges[edge]['to'])
+      }
+    }
+  }
+  selectNodes(selectedNodes)
+}</script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+            
+            
+            
+            
+            
+
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 600px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+             #loadingBar {
+                 position:absolute;
+                 top:0px;
+                 left:0px;
+                 width: 100%;
+                 height: 600px;
+                 background-color:rgba(200,200,200,0.8);
+                 -webkit-transition: all 0.5s ease;
+                 -moz-transition: all 0.5s ease;
+                 -ms-transition: all 0.5s ease;
+                 -o-transition: all 0.5s ease;
+                 transition: all 0.5s ease;
+                 opacity:1;
+             }
+
+             #bar {
+                 position:absolute;
+                 top:0px;
+                 left:0px;
+                 width:20px;
+                 height:20px;
+                 margin:auto auto auto auto;
+                 border-radius:11px;
+                 border:2px solid rgba(30,30,30,0.05);
+                 background: rgb(0, 173, 246); /* Old browsers */
+                 box-shadow: 2px 0px 4px rgba(0,0,0,0.4);
+             }
+
+             #border {
+                 position:absolute;
+                 top:10px;
+                 left:10px;
+                 width:500px;
+                 height:23px;
+                 margin:auto auto auto auto;
+                 box-shadow: 0px 0px 4px rgba(0,0,0,0.2);
+                 border-radius:10px;
+             }
+
+             #text {
+                 position:absolute;
+                 top:8px;
+                 left:530px;
+                 width:30px;
+                 height:50px;
+                 margin:auto auto auto auto;
+                 font-size:22px;
+                 color: #000000;
+             }
+
+             div.outerBorder {
+                 position:relative;
+                 top:400px;
+                 width:600px;
+                 height:44px;
+                 margin:auto auto auto auto;
+                 border:8px solid rgba(0,0,0,0.1);
+                 background: rgb(252,252,252); /* Old browsers */
+                 background: -moz-linear-gradient(top,  rgba(252,252,252,1) 0%, rgba(237,237,237,1) 100%); /* FF3.6+ */
+                 background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(252,252,252,1)), color-stop(100%,rgba(237,237,237,1))); /* Chrome,Safari4+ */
+                 background: -webkit-linear-gradient(top,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* Chrome10+,Safari5.1+ */
+                 background: -o-linear-gradient(top,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* Opera 11.10+ */
+                 background: -ms-linear-gradient(top,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* IE10+ */
+                 background: linear-gradient(to bottom,  rgba(252,252,252,1) 0%,rgba(237,237,237,1) 100%); /* W3C */
+                 filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#fcfcfc', endColorstr='#ededed',GradientType=0 ); /* IE6-9 */
+                 border-radius:72px;
+                 box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
+             }
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+            <div id="loadingBar">
+              <div class="outerBorder">
+                <div id="text">0%</div>
+                <div id="border">
+                  <div id="bar"></div>
+                </div>
+              </div>
+            </div>
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#97c2fc", "id": "Policy", "label": "Policy", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Aircraft Liability", "label": "Aircraft Liability", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "deductible", "label": "deductible", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "structures", "label": "structures", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "insurance", "label": "insurance", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "building", "label": "building", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "replacement cost", "label": "replacement cost", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "limit of liability", "label": "limit of liability", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "service agreement", "label": "service agreement", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "loss", "label": "loss", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "notification", "label": "notification", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "loss caused by fire", "label": "loss caused by fire", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "loss caused by nuclear hazard", "label": "loss caused by nuclear hazard", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Claim Expenses", "label": "Claim Expenses", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "First Aid Expenses", "label": "First Aid Expenses", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Damage To Property Of Others", "label": "Damage To Property Of Others", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "bodily injury or property damage", "label": "bodily injury or property damage", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "written waiver or change", "label": "written waiver or change", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Company", "label": "Company", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "liability for bodily injury", "label": "liability for bodily injury", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Insured", "label": "Insured", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "person in household", "label": "person in household", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "student under age 24", "label": "student under age 24", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "members of household", "label": "members of household", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "page_label", "label": "page_label", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "1", "label": "1", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "3", "label": "3", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "5", "label": "5", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "7", "label": "7", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "12", "label": "12", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "18", "label": "18", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "19", "label": "19", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "20", "label": "20", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "file_name", "label": "file_name", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "HO3_sample.pdf", "label": "HO3_sample.pdf", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Philz", "label": "Philz", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Berkeley", "label": "Berkeley", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "1982", "label": "1982", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Coverage A", "label": "Coverage A", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Insurance Services Office", "label": "Insurance Services Office", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Debris Removal", "label": "Debris Removal", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Personal Property", "label": "Personal Property", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "anywhere in the world", "label": "anywhere in the world", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "HO 00 03 10 00c", "label": "HO 00 03 10 00c", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "insurable interest", "label": "insurable interest", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "policy", "label": "policy", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Property", "label": "Property", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Motor vehicles", "label": "Motor vehicles", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Aircraft", "label": "Aircraft", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "off the \"residence premises\"", "label": "off the \"residence premises\"", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "premises", "label": "premises", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Peril Insured Against", "label": "Peril Insured Against", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "risk of direct physical loss", "label": "risk of direct physical loss", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Section I - Exclusions", "label": "Section I - Exclusions", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "direct physical loss", "label": "direct physical loss", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "actual cash value", "label": "actual cash value", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Additional Living Expense", "label": "Additional Living Expense", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "necessary increase in living expenses", "label": "necessary increase in living expenses", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Fair Rental Value", "label": "Fair Rental Value", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "fair rental value of premises", "label": "fair rental value of premises", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "We", "label": "We", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Loss Assessment", "label": "Loss Assessment", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Credit Card", "label": "Credit Card", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "theft", "label": "theft", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "lossequals", "label": "lossequals", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "defense", "label": "defense", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "10 days", "label": "10 days", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "owner/tenant", "label": "owner/tenant", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Collapse", "label": "Collapse", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "abrupt falling down or caving in", "label": "abrupt falling down or caving in", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Covered Property", "label": "Covered Property", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "collapse", "label": "collapse", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Defective material", "label": "Defective material", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Ordinance or Law", "label": "Ordinance or Law", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "construction", "label": "construction", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "demolition", "label": "demolition", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "loss in value", "label": "loss in value", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Ordinance or Law Coverage", "label": "Ordinance or Law Coverage", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "increased costs to remove debris", "label": "increased costs to remove debris", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Plumbing system", "label": "Plumbing system", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "sump pump", "label": "sump pump", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "household appliance", "label": "household appliance", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Theft", "label": "Theft", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "dwelling under construction", "label": "dwelling under construction", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Wear and tear", "label": "Wear and tear", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "deterioration", "label": "deterioration", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Storm drain", "label": "Storm drain", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Power Failure", "label": "Power Failure", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Windstorm or Hail", "label": "Windstorm or Hail", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "loss to watercraft", "label": "loss to watercraft", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Hail", "label": "Hail", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "opening in roof/wall", "label": "opening in roof/wall", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Explosion", "label": "Explosion", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "self-propelled missiles/spacecraft", "label": "self-propelled missiles/spacecraft", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Falling Object", "label": "Falling Object", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "outside wall of building", "label": "outside wall of building", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Peril", "label": "Peril", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "accidental discharge", "label": "accidental discharge", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "freezing", "label": "freezing", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Pollutants", "label": "Pollutants", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "smoke", "label": "smoke", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Earth Movement", "label": "Earth Movement", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Earthquake", "label": "Earthquake", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Neglect", "label": "Neglect", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "neglect of insured", "label": "neglect of insured", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "War", "label": "War", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "civil war", "label": "civil war", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Exclusion A.7.", "label": "Exclusion A.7.", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Nuclear Hazard", "label": "Nuclear Hazard", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Intentional Loss", "label": "Intentional Loss", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "any loss arising out of any act an \"insured\" commits or conspires to commit with the intent to cause a loss", "label": "any loss arising out of any act an \"insured\" commits or conspires to commit with the intent to cause a loss", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Buildings", "label": "Buildings", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "new premises", "label": "new premises", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "cost incurred", "label": "cost incurred", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "Loss", "label": "Loss", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "2.a. and b.", "label": "2.a. and b.", "shape": "dot", "size": 10}, {"color": "#97c2fc", "id": "actual cash value basis", "label": "actual cash value basis", "shape": "dot", "size": 10}]);
+                  edges = new vis.DataSet([{"arrows": "to", "from": "Policy", "label": "defines", "title": "defines", "to": "Aircraft Liability", "width": 1}, {"arrows": "to", "from": "Policy", "label": "has", "title": "has", "to": "deductible", "width": 1}, {"arrows": "to", "from": "Policy", "label": "covers", "title": "covers", "to": "structures", "width": 1}, {"arrows": "to", "from": "Policy", "label": "provides", "title": "provides", "to": "insurance", "width": 1}, {"arrows": "to", "from": "Policy", "label": "has limit of liability", "title": "has limit of liability", "to": "building", "width": 1}, {"arrows": "to", "from": "Policy", "label": "covers", "title": "covers", "to": "replacement cost", "width": 1}, {"arrows": "to", "from": "Policy", "label": "applies", "title": "applies", "to": "limit of liability", "width": 1}, {"arrows": "to", "from": "Policy", "label": "is excess over", "title": "is excess over", "to": "service agreement", "width": 1}, {"arrows": "to", "from": "Policy", "label": "pays", "title": "pays", "to": "loss", "width": 1}, {"arrows": "to", "from": "Policy", "label": "requires", "title": "requires", "to": "notification", "width": 1}, {"arrows": "to", "from": "Policy", "label": "covers", "title": "covers", "to": "loss caused by fire", "width": 1}, {"arrows": "to", "from": "Policy", "label": "excludes", "title": "excludes", "to": "loss caused by nuclear hazard", "width": 1}, {"arrows": "to", "from": "Policy", "label": "covers", "title": "covers", "to": "Claim Expenses", "width": 1}, {"arrows": "to", "from": "Policy", "label": "covers", "title": "covers", "to": "First Aid Expenses", "width": 1}, {"arrows": "to", "from": "Policy", "label": "covers", "title": "covers", "to": "Damage To Property Of Others", "width": 1}, {"arrows": "to", "from": "Policy", "label": "applies to", "title": "applies to", "to": "bodily injury or property damage", "width": 1}, {"arrows": "to", "from": "Policy", "label": "requires", "title": "requires", "to": "written waiver or change", "width": 1}, {"arrows": "to", "from": "insurance", "label": "provides", "title": "provides", "to": "Company", "width": 1}, {"arrows": "to", "from": "Aircraft Liability", "label": "includes", "title": "includes", "to": "liability for bodily injury", "width": 1}, {"arrows": "to", "from": "Insured", "label": "defined as", "title": "defined as", "to": "person in household", "width": 1}, {"arrows": "to", "from": "Insured", "label": "defined as", "title": "defined as", "to": "student under age 24", "width": 1}, {"arrows": "to", "from": "Insured", "label": "includes", "title": "includes", "to": "members of household", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "1", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "3", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "5", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "7", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "12", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "18", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "19", "width": 1}, {"arrows": "to", "from": "page_label", "label": "is", "title": "is", "to": "20", "width": 1}, {"arrows": "to", "from": "file_name", "label": "is", "title": "is", "to": "HO3_sample.pdf", "width": 1}, {"arrows": "to", "from": "Philz", "label": "founded in", "title": "founded in", "to": "Berkeley", "width": 1}, {"arrows": "to", "from": "Philz", "label": "founded in", "title": "founded in", "to": "1982", "width": 1}, {"arrows": "to", "from": "Coverage A", "label": "does not reduce", "title": "does not reduce", "to": "limit of liability", "width": 1}, {"arrows": "to", "from": "limit of liability", "label": "has", "title": "has", "to": "Insurance Services Office", "width": 1}, {"arrows": "to", "from": "limit of liability", "label": "included in", "title": "included in", "to": "Debris Removal", "width": 1}, {"arrows": "to", "from": "Personal Property", "label": "covered", "title": "covered", "to": "anywhere in the world", "width": 1}, {"arrows": "to", "from": "Insurance Services Office", "label": "Copyright of", "title": "Copyright of", "to": "HO 00 03 10 00c", "width": 1}, {"arrows": "to", "from": "Insurance Services Office", "label": "has", "title": "has", "to": "insurable interest", "width": 1}, {"arrows": "to", "from": "Insurance Services Office", "label": "may not renew", "title": "may not renew", "to": "policy", "width": 1}, {"arrows": "to", "from": "Property", "label": "excluded from coverage", "title": "excluded from coverage", "to": "Motor vehicles", "width": 1}, {"arrows": "to", "from": "Property", "label": "excluded from coverage", "title": "excluded from coverage", "to": "Aircraft", "width": 1}, {"arrows": "to", "from": "Property", "label": "rented or held for rental to others", "title": "rented or held for rental to others", "to": "off the \"residence premises\"", "width": 1}, {"arrows": "to", "from": "Property", "label": "covered by", "title": "covered by", "to": "policy", "width": 1}, {"arrows": "to", "from": "Property", "label": "removed from", "title": "removed from", "to": "premises", "width": 1}, {"arrows": "to", "from": "Property", "label": "insured against", "title": "insured against", "to": "Peril Insured Against", "width": 1}, {"arrows": "to", "from": "Property", "label": "insured against", "title": "insured against", "to": "risk of direct physical loss", "width": 1}, {"arrows": "to", "from": "Property", "label": "excluded", "title": "excluded", "to": "Section I - Exclusions", "width": 1}, {"arrows": "to", "from": "Property", "label": "insured for", "title": "insured for", "to": "direct physical loss", "width": 1}, {"arrows": "to", "from": "Property", "label": "settled as", "title": "settled as", "to": "actual cash value", "width": 1}, {"arrows": "to", "from": "Additional Living Expense", "label": "covers", "title": "covers", "to": "necessary increase in living expenses", "width": 1}, {"arrows": "to", "from": "Fair Rental Value", "label": "covers", "title": "covers", "to": "fair rental value of premises", "width": 1}, {"arrows": "to", "from": "policy", "label": "may cancel", "title": "may cancel", "to": "We", "width": 1}, {"arrows": "to", "from": "policy", "label": "covered by", "title": "covered by", "to": "Loss Assessment", "width": 1}, {"arrows": "to", "from": "Peril Insured Against", "label": "endangers", "title": "endangers", "to": "premises", "width": 1}, {"arrows": "to", "from": "Peril Insured Against", "label": "covers", "title": "covers", "to": "direct physical loss", "width": 1}, {"arrows": "to", "from": "Credit Card", "label": "covers", "title": "covers", "to": "theft", "width": 1}, {"arrows": "to", "from": "We", "label": "pay for", "title": "pay for", "to": "lossequals", "width": 1}, {"arrows": "to", "from": "We", "label": "provide", "title": "provide", "to": "defense", "width": 1}, {"arrows": "to", "from": "We", "label": "letting you know", "title": "letting you know", "to": "10 days", "width": 1}, {"arrows": "to", "from": "Loss Assessment", "label": "charged against", "title": "charged against", "to": "owner/tenant", "width": 1}, {"arrows": "to", "from": "Collapse", "label": "defined as", "title": "defined as", "to": "abrupt falling down or caving in", "width": 1}, {"arrows": "to", "from": "Covered Property", "label": "involves", "title": "involves", "to": "collapse", "width": 1}, {"arrows": "to", "from": "collapse", "label": "causes", "title": "causes", "to": "Defective material", "width": 1}, {"arrows": "to", "from": "Ordinance or Law", "label": "requires", "title": "requires", "to": "construction", "width": 1}, {"arrows": "to", "from": "Ordinance or Law", "label": "regulates", "title": "regulates", "to": "demolition", "width": 1}, {"arrows": "to", "from": "Ordinance or Law", "label": "results in", "title": "results in", "to": "loss in value", "width": 1}, {"arrows": "to", "from": "Ordinance or Law Coverage", "label": "covers", "title": "covers", "to": "increased costs to remove debris", "width": 1}, {"arrows": "to", "from": "Plumbing system", "label": "does not include", "title": "does not include", "to": "sump pump", "width": 1}, {"arrows": "to", "from": "Plumbing system", "label": "is", "title": "is", "to": "household appliance", "width": 1}, {"arrows": "to", "from": "Theft", "label": "in or to", "title": "in or to", "to": "dwelling under construction", "width": 1}, {"arrows": "to", "from": "Wear and tear", "label": "is", "title": "is", "to": "deterioration", "width": 1}, {"arrows": "to", "from": "Storm drain", "label": "causes", "title": "causes", "to": "loss", "width": 1}, {"arrows": "to", "from": "loss", "label": "results in", "title": "results in", "to": "Power Failure", "width": 1}, {"arrows": "to", "from": "Windstorm or Hail", "label": "includes", "title": "includes", "to": "loss to watercraft", "width": 1}, {"arrows": "to", "from": "Hail", "label": "causes", "title": "causes", "to": "opening in roof/wall", "width": 1}, {"arrows": "to", "from": "Explosion", "label": "includes", "title": "includes", "to": "self-propelled missiles/spacecraft", "width": 1}, {"arrows": "to", "from": "Falling Object", "label": "damages", "title": "damages", "to": "outside wall of building", "width": 1}, {"arrows": "to", "from": "Peril", "label": "includes", "title": "includes", "to": "accidental discharge", "width": 1}, {"arrows": "to", "from": "Peril", "label": "excludes", "title": "excludes", "to": "freezing", "width": 1}, {"arrows": "to", "from": "Pollutants", "label": "includes", "title": "includes", "to": "smoke", "width": 1}, {"arrows": "to", "from": "Earth Movement", "label": "includes", "title": "includes", "to": "Earthquake", "width": 1}, {"arrows": "to", "from": "Neglect", "label": "means", "title": "means", "to": "neglect of insured", "width": 1}, {"arrows": "to", "from": "War", "label": "includes", "title": "includes", "to": "civil war", "width": 1}, {"arrows": "to", "from": "Exclusion A.7.", "label": "pertains to", "title": "pertains to", "to": "Nuclear Hazard", "width": 1}, {"arrows": "to", "from": "Intentional Loss", "label": "means", "title": "means", "to": "any loss arising out of any act an \"insured\" commits or conspires to commit with the intent to cause a loss", "width": 1}, {"arrows": "to", "from": "Buildings", "label": "covered under", "title": "covered under", "to": "replacement cost", "width": 1}, {"arrows": "to", "from": "building", "label": "rebuilt at", "title": "rebuilt at", "to": "new premises", "width": 1}, {"arrows": "to", "from": "building", "label": "limited to", "title": "limited to", "to": "cost incurred", "width": 1}, {"arrows": "to", "from": "Loss", "label": "settled according to", "title": "settled according to", "to": "2.a. and b.", "width": 1}, {"arrows": "to", "from": "Loss", "label": "paid on", "title": "paid on", "to": "actual cash value basis", "width": 1}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+                      network.on("stabilizationProgress", function(params) {
+                          document.getElementById('loadingBar').removeAttribute("style");
+                          var maxWidth = 496;
+                          var minWidth = 20;
+                          var widthFactor = params.iterations/params.total;
+                          var width = Math.max(minWidth,maxWidth * widthFactor);
+                          document.getElementById('bar').style.width = width + 'px';
+                          document.getElementById('text').innerHTML = Math.round(widthFactor*100) + '%';
+                      });
+                      network.once("stabilizationIterationsDone", function() {
+                          document.getElementById('text').innerHTML = '100%';
+                          document.getElementById('bar').style.width = '496px';
+                          document.getElementById('loadingBar').style.opacity = 0;
+                          // really clean the dom element
+                          setTimeout(function () {document.getElementById('loadingBar').style.display = 'none';}, 500);
+                      });
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
