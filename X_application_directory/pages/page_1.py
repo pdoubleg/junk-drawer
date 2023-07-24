@@ -69,7 +69,7 @@ tools = [
         func=lambda q: str(doi_index.as_query_engine(
             similarity_top_k=5,
             streaming=True).query(q)),
-        description="useful for when you want to answer questions about insurance regulation such as rules, regulations, or statutes.",
+        description="useful for when you want to answer questions about Department of Insurancce (DOI) regulations such as rules, statutes, or general requirements insurance companies must follow.",
         return_direct=False,
     ),
         Tool(
@@ -77,7 +77,7 @@ tools = [
         func=lambda q: str(bldg_code_index.as_query_engine(
             similarity_top_k=5,
             streaming=True).query(q)),
-        description="useful for when you want to answer technical questions about building, consruction, and renovation requirements.",
+        description="useful for when you want to answer questions about building consruction, and renovation.",
         return_direct=False,
     ),
 ]

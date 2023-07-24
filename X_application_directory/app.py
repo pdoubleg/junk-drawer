@@ -53,7 +53,7 @@ ho3_agent_tool = [
     Tool(
         name="ho3_query_engine",
         func=lambda q: str(ho3_index.as_query_engine(
-            similarity_top_k=5,
+            similarity_top_k=10,
             streaming=True).query(q)),
         description="useful for when you want to answer questions about homeowner's insurance coverage.",
         return_direct=False,
@@ -61,17 +61,17 @@ ho3_agent_tool = [
     Tool(
         name="doi_query_engine",
         func=lambda q: str(doi_index.as_query_engine(
-            similarity_top_k=5,
+            similarity_top_k=10,
             streaming=True).query(q)),
-        description="useful for when you want to answer questions about insurance regulation such as rules, requirements, or statutes.",
+        description="useful for when you want to answer questions department of insurance (DOI) regulation such as rules, requirements, or statutes.",
         return_direct=False,
     ),
         Tool(
         name="bldg_codes_query_engine",
         func=lambda q: str(bldg_code_index.as_query_engine(
-            similarity_top_k=5,
+            similarity_top_k=10,
             streaming=True).query(q)),
-        description="useful for when you want to answer technical questions about building consruction and renovation.",
+        description="useful for when you want to answer questions about building codes.",
         return_direct=False,
     ),
 ]

@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import tempfile
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
@@ -27,7 +29,7 @@ def configure_qa_chain(uploaded_files):
         docs.extend(loader.load())
 
     # Split documents
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=100)
     splits = text_splitter.split_documents(docs)
 
     # Create embeddings and store in vectordb
@@ -42,7 +44,7 @@ def configure_qa_chain(uploaded_files):
 
     # Setup LLM and QA chain
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
+        model_name="gpt-3.5-turbo", temperature=0, streaming=True
     )
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm, retriever=retriever, memory=memory, verbose=True
@@ -75,10 +77,6 @@ class PrintRetrievalHandler(BaseCallbackHandler):
             self.container.markdown(doc.page_content)
 
 
-openai_api_key = st.sidebar.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.")
-    st.stop()
 
 uploaded_files = st.sidebar.file_uploader(
     label="Upload PDF files", type=["pdf"], accept_multiple_files=True
