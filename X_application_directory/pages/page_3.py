@@ -9,6 +9,7 @@ import itertools
 import text_utils
 import pandas as pd
 import altair as alt
+import faiss
 import streamlit as st
 from io import StringIO
 from llama_index import Document
@@ -22,6 +23,7 @@ from langchain.retrievers import TFIDFRetriever
 from langchain.evaluation.qa import QAEvalChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
+from llama_index import StorageCntext
 from llama_index.vector_stores.faiss import FaissVectorStore
 from llama_index import LLMPredictor, ServiceContext
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter
@@ -159,15 +161,20 @@ def make_retriever(splits, retriever_type, embedding_type, num_neighbors, _llm):
     else:
         st.warning("`Embedding type not recognized. Using OpenAI`", icon="⚠️")
         embedding = OpenAIEmbeddings()
+        
+    d = 1536
+    faiss_index = faiss.IndexFlatL2(d)
 
     # Select retriever
     if retriever_type == "similarity-search":
         try:
-            vector_store = FaissVectorStore.from_texts(splits, embedding)
+            vector_store = FaissVectorStore(faiss_index=faiss_index)
+            storage_context = StorageContext.from_defaults(vector_store=vector_store)
+            index = VectorStoreIndex.from_documents(splits, storage_context=storage_context)
         except ValueError:
             st.warning("`Error using OpenAI embeddings (disallowed TikToken token in the text). Using HuggingFace.`",
                        icon="⚠️")
-            vector_store = FaissVectorStore.from_texts(splits, HuggingFaceEmbeddings())
+            vector_store = FaissVectorStore.from_documents(splits, HuggingFaceEmbeddings())
         retriever_obj = vector_store.as_retriever(k=num_neighbors)
     elif retriever_type == "SVM":
         retriever_obj = SVMRetriever.from_texts(splits, embedding)
