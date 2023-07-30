@@ -4,14 +4,13 @@ version = "0.1.0"
 description = "work at home"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-packages = [{include = "liberty_gpt"}]
 
 [tool.poetry.dependencies]
 python = "^3.10.0"
-langchain = {extras = ["docarray"], version = "^0.0.239"}
+langchain = {extras = ["docarray"], version = "^0.0.247"}
 openai = "^0.27.8"
-llama-index = "0.7.4"
-streamlit = "1.24.0"
+llama-index = "0.7.14"
+streamlit = "1.25.0"
 faiss-cpu = "^1.7.4"
 python-dotenv = "^1.0.0"
 transformers = "^4.30.2"
@@ -56,6 +55,7 @@ python-louvain = "^0.16"
 nebula3-python = "^3.4.0"
 seaborn = "^0.12.2"
 optuna = "^3.2.0"
+instructorembedding = "^1.0.1"
 
 
 [tool.poetry.group.dev.dependencies]

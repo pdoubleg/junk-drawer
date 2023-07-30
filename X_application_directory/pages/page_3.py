@@ -12,7 +12,9 @@ import altair as alt
 import faiss
 import streamlit as st
 from io import StringIO
-from llama_index import Document
+from warnings import simplefilter
+simplefilter(action='ignore', category=FutureWarning)
+from llama_index.schema import Document
 from langchain.chains import RetrievalQA
 from langchain.vectorstores import FAISS
 from llama_index import LangchainEmbedding
@@ -22,8 +24,11 @@ from langchain.chains import QAGenerationChain
 from langchain.retrievers import TFIDFRetriever
 from langchain.evaluation.qa import QAEvalChain
 from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceInstructEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
-from llama_index import StorageCntext
+from llama_index.schema import TextNode
+from llama_index.node_parser import SimpleNodeParser
+from llama_index import StorageContext, VectorStoreIndex
 from llama_index.vector_stores.faiss import FaissVectorStore
 from llama_index import LLMPredictor, ServiceContext
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter
@@ -156,37 +161,43 @@ def make_retriever(splits, retriever_type, embedding_type, num_neighbors, _llm):
     # Set embeddings
     if embedding_type == "OpenAI":
         embedding = OpenAIEmbeddings()
+        d = 1536
     elif embedding_type == "HuggingFace":
         embedding = HuggingFaceEmbeddings()
+        d = 512
+    elif embedding_type == "InstructEmbeddings":
+        embedding = HuggingFaceInstructEmbeddings(
+            query_instruction="Represent the query for retrieval: ")
+        
     else:
         st.warning("`Embedding type not recognized. Using OpenAI`", icon="⚠️")
         embedding = OpenAIEmbeddings()
-        
-    d = 1536
-    faiss_index = faiss.IndexFlatL2(d)
+        d = 1536
+        faiss_index = faiss.IndexFlatL2(d)
 
     # Select retriever
     if retriever_type == "similarity-search":
         try:
-            vector_store = FaissVectorStore(faiss_index=faiss_index)
-            storage_context = StorageContext.from_defaults(vector_store=vector_store)
-            index = VectorStoreIndex.from_documents(splits, storage_context=storage_context)
+            vector_store = FAISS.from_texts(splits, embedding)
         except ValueError:
             st.warning("`Error using OpenAI embeddings (disallowed TikToken token in the text). Using HuggingFace.`",
                        icon="⚠️")
-            vector_store = FaissVectorStore.from_documents(splits, HuggingFaceEmbeddings())
+            vector_store = FAISS.from_texts(splits, HuggingFaceEmbeddings())
         retriever_obj = vector_store.as_retriever(k=num_neighbors)
     elif retriever_type == "SVM":
         retriever_obj = SVMRetriever.from_texts(splits, embedding)
     elif retriever_type == "TF-IDF":
         retriever_obj = TFIDFRetriever.from_texts(splits)
     elif retriever_type == "Llama-Index":
-        documents = [Document(t, LangchainEmbedding(embedding)) for t in splits]
+        embed_model = LangchainEmbedding(embedding)
         llm_predictor = LLMPredictor(llm)
-        context = ServiceContext.from_defaults(chunk_size_limit=512, llm_predictor=llm_predictor)
-        d = 1536
-        faiss_index = faiss.IndexFlatL2(d)
-        retriever_obj = FaissVectorStore.from_documents(documents, faiss_index=faiss_index, service_context=context)
+        service_context = ServiceContext.from_defaults(
+            embed_model=embed_model,
+            chunk_size_limit=512, 
+            llm_predictor=llm_predictor)
+        documents = [Document(text=t) for t in splits]
+        retriever_obj = VectorStoreIndex.from_documents(documents, service_context=service_context)
+
     else:
         st.warning("`Retriever type not recognized. Using SVM`", icon="⚠️")
         retriever_obj = SVMRetriever.from_texts(splits, embedding)
@@ -307,8 +318,7 @@ def run_evaluation(chain, retriever, eval_set, grade_prompt, retriever_type, num
         if retriever_type != "Llama-Index":
             predictions_list.append(chain(data))
         elif retriever_type == "Llama-Index":
-            answer = chain.query(data["question"], similarity_top_k=num_neighbors, response_mode="tree_summarize",
-                                 use_async=True)
+            answer = chain.as_query_engine(similarity_top_k=num_neighbors).query(data["question"])
             predictions_list.append({"question": data["question"], "answer": data["answer"], "result": answer.response})
         gt_dataset.append(data)
         end_time = time.time()
@@ -369,8 +379,9 @@ with st.sidebar.form("user_input"):
 
     embeddings = st.radio("`Choose embeddings`",
                           ("HuggingFace",
+                           "InstructEmbeddings",
                            "OpenAI"),
-                            index=1)
+                            index=2)
 
     grade_prompt = st.radio("`Grading style prompt`",
                             ("Fast",
@@ -422,8 +433,11 @@ if uploaded_file:
 
     # Assemble outputs
     d = pd.DataFrame(predictions)
-    d['answer score'] = [g['text'] for g in graded_answers]
-    d['docs score'] = [g['text'] for g in graded_retrieval]
+    # st.write(d)
+    # st.write(graded_answers)
+    # st.write(graded_retrieval)
+    d['answer score'] = [g['results'] for g in graded_answers]
+    d['docs score'] = [g['results'] for g in graded_retrieval]
     d['latency'] = latency
 
     # Summary statistics
