@@ -44,7 +44,7 @@ def summarize(file):
     return response
 
 #streamlit application
-st. set_page_config(layout='wide')
+st.set_page_config(layout='wide')
 
 st.title('Semantic Search Application')
 
