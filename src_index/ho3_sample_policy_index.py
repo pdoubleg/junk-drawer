@@ -7,6 +7,11 @@ from llama_index import ServiceContext
 from llama_index import LangchainEmbedding
 from llama_index.node_parser import SimpleNodeParser
 from llama_index import VectorStoreIndex
+from llama_index.node_parser.extractors import (
+    MetadataExtractor,
+    SummaryExtractor,
+    KeywordExtractor,
+)
 
 from .clean_sample_ho3 import clean_sample_ho3_pages
 
@@ -48,13 +53,13 @@ def identify_original_documents(documents: List[Document], nodes: List[TextNode]
     return nodes
 
 
-def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document]):
+def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document], llm_metadata: bool):
     # Apply cleaning function to each Document, i.e., page
     for i, _ in enumerate(sample_ho3_policy_docs):
         sample_ho3_policy_docs[i].text = clean_sample_ho3_pages(sample_ho3_policy_docs[i].text)
         
     # Normalize the text by converting pdf pages into a singe string
-    # long_string = "".join(sample_ho3_policy_docs[i].text for i in range(len(sample_ho3_policy_docs)))
+    # one_long_string = "".join(sample_ho3_policy_docs[i].text for i in range(len(sample_ho3_policy_docs)))
     
     ho3_docs = [Document(text="".join(sample_ho3_policy_docs[i].text for i in range(len(sample_ho3_policy_docs))),
                         id_="HO3_sample.pdf",
@@ -70,9 +75,22 @@ def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document]):
         chunk_size=512,
         chunk_overlap=0,
     )
-    node_parser = SimpleNodeParser(
+    
+    if llm_metadata:
+        metadata_extractor = MetadataExtractor(
+            extractors=[
+            KeywordExtractor(keywords=5),
+            ],
+        )
+        node_parser = SimpleNodeParser(
+            text_splitter=text_splitter,
+            metadata_extractor=metadata_extractor,
+        )
+    else:
+        node_parser = SimpleNodeParser(
         text_splitter=text_splitter,
-    )
+        )
+    
     # Parse text from the prepped Document
     ho3_nodes = node_parser.get_nodes_from_documents(ho3_docs)
     

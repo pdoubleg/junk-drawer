@@ -8,6 +8,7 @@ from llama_index import LLMPredictor, ServiceContext, StorageContext, load_index
 from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import AgentType, Tool, initialize_agent, load_tools
+from langchain.chains import LLMMathChain
 from langchain.callbacks import StreamlitCallbackHandler
 from llama_index.langchain_helpers.agents import IndexToolConfig, LlamaIndexTool
 from llama_index.langchain_helpers.agents import create_llama_chat_agent, create_llama_agent 
@@ -47,14 +48,14 @@ ho3_index = initialize_index(storage_directory=ho3_directory)
 doi_index = initialize_index(storage_directory=doi_directory)
 bldg_code_index = initialize_index(storage_directory=uniform_building_codes)
 
+llm_math_chain = LLMMathChain.from_llm(llm=ChatOpenAI(temperature=0, model="gpt-3.5-turbo"))
 
-
-ho3_agent_tool = [
+tools = [
     Tool(
         name="ho3_query_engine",
         func=lambda q: str(ho3_index.as_query_engine(
             similarity_top_k=10,
-            streaming=True).query(q)),
+            streaming=False).query(q)),
         description="useful for when you want to answer questions about homeowner's insurance coverage.",
         return_direct=False,
     ),
@@ -62,7 +63,7 @@ ho3_agent_tool = [
         name="doi_query_engine",
         func=lambda q: str(doi_index.as_query_engine(
             similarity_top_k=10,
-            streaming=True).query(q)),
+            streaming=False).query(q)),
         description="useful for when you want to answer questions department of insurance (DOI) regulation such as rules, requirements, or statutes.",
         return_direct=False,
     ),
@@ -70,17 +71,22 @@ ho3_agent_tool = [
         name="bldg_codes_query_engine",
         func=lambda q: str(bldg_code_index.as_query_engine(
             similarity_top_k=10,
-            streaming=True).query(q)),
+            streaming=False).query(q)),
         description="useful for when you want to answer questions about building codes.",
         return_direct=False,
     ),
+        Tool(
+        name="Calculator",
+        func=llm_math_chain.run,
+        description="useful for when you need to answer questions about math",
+    ),    
 ]
 
 
-llm = OpenAI(temperature=0, streaming=True)
+llm = OpenAI(temperature=0, streaming=False)
 
 agent = initialize_agent(
-    ho3_agent_tool, 
+    tools, 
     llm, 
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, 
     verbose=True

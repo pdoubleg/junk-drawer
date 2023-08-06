@@ -18,7 +18,7 @@ from langchain.callbacks import StreamlitCallbackHandler
 
 from callbacks.capturing_callback_handler import playback_callbacks
 
-llm = OpenAI(temperature=0, streaming=True)
+llm = OpenAI(temperature=0, streaming=False)
 
 from llama_index import LLMPredictor, ServiceContext, StorageContext, load_index_from_storage
 from langchain.llms import OpenAI
@@ -60,7 +60,7 @@ tools = [
         name="ho3_query_engine",
         func=lambda q: str(ho3_index.as_query_engine(
             similarity_top_k=5,
-            streaming=True).query(q)),
+            streaming=False).query(q)),
         description="useful for when you want to answer questions about homeowner's insurance coverage.",
         return_direct=False,
     ),
@@ -68,7 +68,7 @@ tools = [
         name="doi_query_engine",
         func=lambda q: str(doi_index.as_query_engine(
             similarity_top_k=5,
-            streaming=True).query(q)),
+            streaming=False).query(q)),
         description="useful for when you want to answer questions about Department of Insurancce (DOI) regulations such as rules, statutes, or general requirements insurance companies must follow.",
         return_direct=False,
     ),
@@ -76,7 +76,7 @@ tools = [
         name="bldg_codes_query_engine",
         func=lambda q: str(bldg_code_index.as_query_engine(
             similarity_top_k=5,
-            streaming=True).query(q)),
+            streaming=False).query(q)),
         description="useful for when you want to answer questions about building consruction, and renovation.",
         return_direct=False,
     ),
@@ -141,6 +141,9 @@ cols2 = st.columns(2, gap="small")
 with cols2[0]:
     question_container = st.empty()
     results_container = st.empty()
+    
+with cols2[1]:
+    sources_container = st.empty()
 
 # A hack to "clear" the previous result when submitting a new prompt.
 from callbacks.clear_results import with_clear_container
@@ -148,6 +151,7 @@ from callbacks.clear_results import with_clear_container
 if with_clear_container(submit_clicked):
     # Create our StreamlitCallbackHandler
     res = results_container.container()
+    source = sources_container.container()
     streamlit_handler = StreamlitCallbackHandler(
         parent_container=res,
         max_thought_containers=int(max_thought_containers),
@@ -157,14 +161,6 @@ if with_clear_container(submit_clicked):
 
     question_container.write(f"**Question:** {mrkl_input}")
 
-    if mrkl_input in SAVED_SESSIONS:
-        session_name = SAVED_SESSIONS[mrkl_input]
-        session_path = Path(__file__).parent / "runs" / session_name
-        print(f"Playing saved session: {session_path}")
-        answer = playback_callbacks(
-            [streamlit_handler], str(session_path), max_pause_time=3
-        )
-        res.write(f"**Answer:** {answer}")
-    else:
-        answer = mrkl.run(mrkl_input, callbacks=[streamlit_handler])
-        res.write(f"**Answer:** {answer}")
+    answer = mrkl.run(mrkl_input, callbacks=[streamlit_handler])
+    res.write(f"**Answer:** {answer}")
+    source.write("hello")
