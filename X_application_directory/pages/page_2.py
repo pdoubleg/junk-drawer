@@ -1,6 +1,3 @@
-__version__ = "0.0.1"
-app_name = "LibertyGPT Demo"
-
 import base64
 from typing import List
 import streamlit as st
@@ -8,6 +5,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(layout="wide")
 from io import StringIO
+from IPython.display import Markdown
 import json
 import os
 import PyPDF2
@@ -33,8 +31,8 @@ from langchain.agents import AgentType, Tool, initialize_agent, load_tools
 
 HO3_RAW_DATA_PATH = "../data/HO3_sample.pdf"
 
-ho3_directory = "../_policy_index_storage"
-doi_directory = "../_index_storage"
+ho3_directory = "../ho3_sample_policy_meta_index"
+doi_directory = "../tx_doi_index"
 uniform_building_codes = "../_property_index_storage"
 
 
@@ -206,7 +204,7 @@ def ask():
         response = index.as_query_engine().query(question)
         q = question.strip()
         a = str(response)
-        s = str(response.source_nodes[0].node.get_text())
+        s = str(response.source_nodes[0].node.get_metadata_str())+"\n\n"+'\n\n'.join([str(node.node.get_text()) for node in response.source_nodes])
         ss["answer"] = a
         output_add(q, a)
         output_source(s)
@@ -237,10 +235,10 @@ def b_ask():
 
 
 def b_get_eval_set():
-    if st.button("Get Q&A Sets", type="secondary", use_container_width=True):
+    if st.checkbox("Get Q&A Sets"):
         loaded_text = load_docs(HO3_RAW_DATA_PATH)
         # Use the generate_eval function to generate question-answer pairs
-        num_eval_questions = 6  # Number of question-answer pairs to generate
+        num_eval_questions = 5  # Number of question-answer pairs to generate
         ss["eval_set"] = generate_eval(loaded_text, num_eval_questions, 1000)
         e = ss["eval_set"]
         # Display the question-answer pairs in the sidebar with smaller text
@@ -335,20 +333,19 @@ def main():
         ui_spacer(2)
         with st.expander("**Settings**"):
             b_index()
-            b1, b2 = st.columns(2, gap="small")
-            with b1:
-                b_clear()
-            with b2:
-                b_get_eval_set()
+            b_clear()
+            ui_spacer(1)
             ui_index()
+        ui_spacer(2)
+        b_get_eval_set()
     b_ask()
     ui_info()
     cols2 = st.columns(2, gap="small")
     with cols2[0]:
         # with st.expander("**Document Excerpts**"):
-        placeholder = st.empty()
-        with placeholder.expander("**Query Results**", expanded=False):
-            st.write(display_output())
+        # placeholder = st.empty()
+        # with placeholder.expander("**Query Results**", expanded=False):
+        st.write(display_output())
     with cols2[1]:
         with st.expander("**Original Source Documents**"):
             displayPDF(HO3_RAW_DATA_PATH)

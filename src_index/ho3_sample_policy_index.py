@@ -13,7 +13,7 @@ from llama_index.node_parser.extractors import (
     KeywordExtractor,
 )
 
-from .clean_sample_ho3 import clean_sample_ho3_pages
+from clean_sample_ho3 import clean_sample_ho3_pages
 
 
 def identify_original_documents(documents: List[Document], nodes: List[TextNode]) -> List[TextNode]:
@@ -53,15 +53,13 @@ def identify_original_documents(documents: List[Document], nodes: List[TextNode]
     return nodes
 
 
-def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document], llm_metadata: bool):
+def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document], llm_kw_extract: bool):
     # Apply cleaning function to each Document, i.e., page
     for i, _ in enumerate(sample_ho3_policy_docs):
         sample_ho3_policy_docs[i].text = clean_sample_ho3_pages(sample_ho3_policy_docs[i].text)
         
     # Normalize the text by converting pdf pages into a singe string
-    # one_long_string = "".join(sample_ho3_policy_docs[i].text for i in range(len(sample_ho3_policy_docs)))
-    
-    ho3_docs = [Document(text="".join(sample_ho3_policy_docs[i].text for i in range(len(sample_ho3_policy_docs))),
+    docs = [Document(text="".join(sample_ho3_policy_docs[i].text for i in range(len(sample_ho3_policy_docs))),
                         id_="HO3_sample.pdf",
                         metadata={"source": "https://www.iii.org/sites/default/files/docs/pdf/HO3_sample.pdf",
                                 "Document Name": "HO3 Sample Policy", 
@@ -76,7 +74,7 @@ def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document], llm_me
         chunk_overlap=0,
     )
     
-    if llm_metadata:
+    if llm_kw_extract:
         metadata_extractor = MetadataExtractor(
             extractors=[
             KeywordExtractor(keywords=5),
@@ -92,7 +90,7 @@ def build_ho3_sample_policy_index(sample_ho3_policy_docs: List[Document], llm_me
         )
     
     # Parse text from the prepped Document
-    ho3_nodes = node_parser.get_nodes_from_documents(ho3_docs)
+    ho3_nodes = node_parser.get_nodes_from_documents(docs)
     
     # Add page number(s) to metadata, e.g., pages 2-3
     nodes_with_pages = identify_original_documents(sample_ho3_policy_docs, ho3_nodes)

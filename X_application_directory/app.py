@@ -1,9 +1,6 @@
-__version__ = "0.0.01"
-app_name = "LibertyGPT Sandbox"
-
 import streamlit as st
-st.set_page_config(page_title="LibertyGPT Sandbox", layout='wide')
-st.title('LibertyGPT Sandbox')
+st.set_page_config(page_title="GPT Sandbox", layout='wide')
+st.title('GPT Sandbox')
 from llama_index import LLMPredictor, ServiceContext, StorageContext, load_index_from_storage
 from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
@@ -21,7 +18,7 @@ doi_directory = "../_index_storage"
 uniform_building_codes = "../_property_index_storage"
 
 
-st.write("This sandbox is powered by :statue_of_liberty:**LibertyGPT**, 🦜[LangChain](https://langchain-langchain.vercel.app/docs/get_started/introduction.html) and :llama:[Llama-Index](https://gpt-index.readthedocs.io/en/latest/index.html)", 
+st.write("This sandbox is powered by :statue_of_liberty:**GPT**, 🦜[LangChain](https://langchain-langchain.vercel.app/docs/get_started/introduction.html) and :llama:[Llama-Index](https://gpt-index.readthedocs.io/en/latest/index.html)", 
           unsafe_allow_html=True)
 
 

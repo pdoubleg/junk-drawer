@@ -127,14 +127,9 @@ if key in st.session_state and shadow_key not in st.session_state:
     st.session_state[shadow_key] = st.session_state[key]
 
 with st.form(key="form"):
-    # Ask one of the sample questions, or enter your API Keys in the sidebar to ask your own custom questions."
-    prefilled = st.selectbox("Sample questions", sorted(SAVED_SESSIONS.keys())) or ""
-    mrkl_input = ""
 
-    mrkl_input = st.text_input("Or, ask your own question", key=shadow_key)
+    mrkl_input = st.text_input("Ask a question", key=shadow_key)
     st.session_state[key] = mrkl_input
-    if not mrkl_input:
-        mrkl_input = prefilled
     submit_clicked = st.form_submit_button("Submit Question")
 
 cols2 = st.columns(2, gap="small")
