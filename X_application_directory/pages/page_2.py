@@ -101,7 +101,6 @@ def displayPDF(file):
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 
-@st.cache_resource
 def get_embed_model():
     return LangchainEmbedding(OpenAIEmbeddings())
 
@@ -114,10 +113,15 @@ def get_llm_predictor(temperature=0):
     return LLMPredictor(ChatOpenAI(temperature=temperature, model="gpt-3.5-turbo"))
 
 
+@st.cache_resource
 def initialize_index(storage_directory):
-    llm = get_llm_predictor()
+    llm = get_llm()
+    embed_model = get_embed_model()
 
-    service_context = ServiceContext.from_defaults(llm_predictor=llm)
+    service_context = ServiceContext.from_defaults(
+        llm=llm,
+        embed_model=embed_model,
+        )
 
     index = load_index_from_storage(
         StorageContext.from_defaults(persist_dir=storage_directory),

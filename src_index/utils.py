@@ -57,28 +57,6 @@ def parse_pdf(file: BytesIO):
     return [LI_Document(text)]
 
 
-# def create_index(pdf_obj, folder_name=None, file_name=None):
-#     """
-#     Create an index for a given PDF file and upload it to S3.
-#     """
-#     index_name = file_name.replace(".pdf", ".json")
-
-#     logging.info("Generating new index...")
-#     documents = parse_pdf(pdf_obj)
-
-#     logging.info("Creating index...")
-#     index = VectorStoreIndex(documents)
-
-#     with tempfile.TemporaryDirectory() as tmp_dir:
-#         tmp_path = f"{tmp_dir}/{index_name}"
-#         logging.info("Saving index...")
-#         index.save_to_disk(tmp_path)
-
-#         # with open(tmp_path, "rb") as f:
-#         #     logging.info("Uploading index to s3...")
-#         #     s3.upload_files(f, f"{folder_name}/{index_name}")
-
-#     return index
 
 
 @st.cache_resource(show_spinner=False)

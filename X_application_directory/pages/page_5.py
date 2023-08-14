@@ -29,7 +29,7 @@ def displayPDF(file):
     
 #semantic search
 def semantic_search(query):
-    documents = SimpleDirectoryReader('data').load_data()
+    documents = SimpleDirectoryReader('.../data/HO3_sample.pdf').load_data()
     index = VectorStoreIndex.from_documents(documents)
     query_index = index.as_query_engine()
     response = query_index.query(query)
@@ -37,7 +37,7 @@ def semantic_search(query):
 
 #summarization 
 def summarize(file):
-    documents = SimpleDirectoryReader('data').load_data()
+    documents = SimpleDirectoryReader('.../data/HO3_sample.pdf').load_data()
     index = ListIndex.from_documents(documents)
     query_index = index.as_query_engine(response_mode="tree_summarize")
     response = query_index.query("Summarize the document")
