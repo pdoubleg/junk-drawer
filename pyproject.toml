@@ -64,6 +64,8 @@ googleapis-common-protos = "^1.59.1"
 tiktoken = "^0.4.0"
 langchain-experimental = "^0.0.8"
 streamlit-extras = "^0.3.0"
+pulp = "^2.7.0"
+faker = "^19.3.0"
 
 
 [tool.poetry.group.dev.dependencies]
