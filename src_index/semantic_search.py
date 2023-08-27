@@ -73,16 +73,21 @@ class SemanticSearch:
     def search_faiss_index(self, index: faiss.Index, 
                             embedding: np.ndarray,
                             top_n: int,
-                            use_cosine_similarity: bool) -> Tuple[List[int], np.ndarray]:
+                            use_cosine_similarity: bool,
+                            similarity_threshold: float) -> Tuple[List[int], np.ndarray]:
         
-        distances, indices = index.search(embedding.reshape(1, -1).astype('float32'), top_n)
+        distances, indices = index.search(embedding.reshape(1, -1).astype('float32'), top_n + 1)
         
         if use_cosine_similarity:
             similarity_scores = distances.flatten()
         else:
             similarity_scores = 1 - distances.flatten()
         
-        return indices.flatten(), similarity_scores
+        # Exclude results that are too similar
+        indices = indices.flatten()[similarity_scores < similarity_threshold]
+        similarity_scores = similarity_scores[similarity_scores < similarity_threshold]
+        
+        return indices[:top_n], similarity_scores[:top_n]
 
 
     @staticmethod
@@ -93,7 +98,7 @@ class SemanticSearch:
         return filtered_df
     
     
-    def query_similar_documents(self, text: str, top_n: int, filter_criteria: dict, use_cosine_similarity: bool = False) -> pd.DataFrame:
+    def query_similar_documents(self, text: str, top_n: int, filter_criteria: dict, use_cosine_similarity: bool = False, similarity_threshold: float = 0.99) -> pd.DataFrame:
         query_embedding = self.encode_string(text)
 
         if filter_criteria is not None:
@@ -106,7 +111,7 @@ class SemanticSearch:
         filtered_embeddings = np.vstack(filtered_df[self.embedding_col_name].values)
 
         index_ = self.build_faiss_index(filtered_embeddings, use_cosine_similarity)
-        indices, sim_scores = self.search_faiss_index(index_, query_embedding, top_n, use_cosine_similarity)
+        indices, sim_scores = self.search_faiss_index(index_, query_embedding, top_n, use_cosine_similarity, similarity_threshold)
         results_df = filtered_df.iloc[indices].copy()
         # Add 'similarity scores' to the DataFrame
         results_df['sim_score'] = sim_scores

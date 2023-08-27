@@ -66,6 +66,7 @@ langchain-experimental = "^0.0.8"
 streamlit-extras = "^0.3.0"
 pulp = "^2.7.0"
 faker = "^19.3.0"
+flask = "^2.3.3"
 
 
 [tool.poetry.group.dev.dependencies]
