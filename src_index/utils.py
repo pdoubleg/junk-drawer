@@ -284,6 +284,28 @@ def get_lc_docs_from_df(df: pd.DataFrame,
     return docs
 
 
+# Another version, this one is useful for pre-computed embeddings
+# Maunually get list of text & embedding pairs, and metadata dicts
+metadatas = []
+for i, row in df.iterrows():
+        metadata={"id_": row["id"],
+                  "URL": row['full_link'],
+                  "topic_title": row['topic_title'],
+                  "case_title": row['llm_title'],
+                  "text_label": row['text_label'],
+                  "state": row['State'],
+                  "date": str(row['datestamp'])}
+        metadatas.append(metadata)
+
+embeddings = OpenAIEmbeddings()
+text_embeddings = df['embeddings'].tolist()
+texts = df['body'].tolist()
+ids = df['id'].tolist()
+text_embedding_pairs = list(zip(texts, text_embeddings))
+id_to_text_map = list(zip(ids, texts))
+lc_faiss_index = FAISS.from_embeddings(text_embedding_pairs, embeddings, metadatas=metadatas, ids=ids)
+
+
 def get_li_docs_from_df(df: pd.DataFrame, 
                         text_col: str, 
                         exclude_from_llm: List[str], 

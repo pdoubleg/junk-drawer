@@ -117,7 +117,6 @@ def get_llm_fact_pattern_summary(df: pd.DataFrame, text_col_name: str) -> pd.Dat
     
     df['summary'] = results
     df['summary'] = df['summary'].astype('string')
-
     return df
 
 
@@ -184,37 +183,29 @@ def rerank_with_cross_encoder(df: pd.DataFrame,
     # Initialize the model and tokenizer
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-
     # Prepare the data for the model
     query_df = pd.DataFrame({"query": [query]})
     query_fact_pattern_df = get_llm_fact_pattern_summary(df=query_df, text_col_name="query")
-    query_proc = query_fact_pattern_df["summary"].iloc[0]
-    
+    query_proc = query_fact_pattern_df["summary"].iloc[0]  
     data = [(query_proc, text) for text in df[text_col_name].tolist()]
-
     # Tokenize the data
     features = tokenizer(*zip(*data), padding=True, truncation=True, return_tensors="pt")
-
     # Predict the scores
     model.eval()
     with torch.no_grad():
         scores = model(**features).logits
-
     # Convert scores to numpy array
     scores = scores.detach().numpy()
-
     # Add the scores to the dataframe
     df['scores'] = scores
-
     # Sort the dataframe by the scores in descending order
     df = df.sort_values(by='scores', ascending=False)
-
     return df
 
 
 
 # Create context for LLM prompt
-def create_context(df: pd.DataFrame, query: str, token_limit: int = 3000) -> str:
+def create_context(df: pd.DataFrame, query: str, context_token_limit: int = 3000) -> str:
     """
     Function to create context for LLM prompt. 
     Designed to take in results from `rerank`, and add max number of search results based on a specified token limit.
@@ -241,7 +232,7 @@ def create_context(df: pd.DataFrame, query: str, token_limit: int = 3000) -> str
                 + "\nURL: "
                 + row["full_link"])
         text_tokens = count_tokens(text)
-        if total_tokens + text_tokens > token_limit:
+        if total_tokens + text_tokens > context_token_limit:
             break
         returns.append(text)
         total_tokens += text_tokens
@@ -250,7 +241,7 @@ def create_context(df: pd.DataFrame, query: str, token_limit: int = 3000) -> str
 
 
 
-def create_formatted_input(df: pd.DataFrame, query: str, token_limit: int,
+def create_formatted_input(df: pd.DataFrame, query: str, context_token_limit: int,
     instructions: str ="""Instructions: Using the provided search results, write a detailed comparative analysis for a new query. ALWAYS cite results using [[number](URL)] notation after the reference. \n\nNew Query:""",
 ) -> str:
     """
@@ -265,7 +256,7 @@ def create_formatted_input(df: pd.DataFrame, query: str, token_limit: int,
         str: Formatted LLM prompt.
     """
 
-    context = create_context(df, query, token_limit)
+    context = create_context(df, query, context_token_limit)
 
     try:
         prompt = f"""{context}\n\n{instructions}\n{query}\n\nAnalysis:"""
@@ -291,8 +282,7 @@ def get_final_answer(formatted_input: str, llm) -> str:
     answer_chain_gpt = LLMChain(
         llm=llm, prompt=main_prompt, verbose=False)
     
-    response = answer_chain_gpt.run({"text": formatted_input})
-    
+    response = answer_chain_gpt.run({"text": formatted_input})  
     return response
 
 
@@ -318,26 +308,12 @@ def get_llm(temperature: float = 0, model: str = "gpt-3.5-turbo"):
     llm = ChatOpenAI(temperature=temperature, model=model)
     return llm
 
-def get_query_embeddings_model():
-    query_embeddings_model = HuggingFaceInstructEmbeddings(
-        query_instruction="Represent the insurance query for retrieving similar articles: "
-    )
-    return query_embeddings_model
-
-
-def get_doc_embeddings_model():
-    doc_embeddings_model = HuggingFaceInstructEmbeddings(
-        query_instruction="Represent the insurance article for retrieval: "
-    )
-    return doc_embeddings_model
-
-
 
 # Main function
 MODEL_NAME = "gpt-3.5-turbo"
-TOKEN_LIMIT = 3000
+CONTEXT_TOKEN_LIMIT = 3000
 
-def run_tool(user_query, top_n=5, model_name=MODEL_NAME, token_limit=TOKEN_LIMIT):
+def run_tool(user_query, top_n=5, model_name=MODEL_NAME, context_token_limit=CONTEXT_TOKEN_LIMIT):
     """
     Function to run the entire process end-to-end.
     
@@ -354,8 +330,6 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, token_limit=TOKEN_LIMIT
     df = get_df()
     search_engine = SemanticSearch(df)
     llm = get_llm(model=model_name)
-    # query_embeddings_model = get_query_embeddings_model()
-    # doc_embeddings_model = get_doc_embeddings_model()
 
     # Create instance of SemanticSearch
     search_engine = SemanticSearch(df)
@@ -375,7 +349,7 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, token_limit=TOKEN_LIMIT
         print(f"Error in get_llm_fact_pattern_summary: {e}")
         return
 
-    # Run rerank
+    # Run rerank_with_cross_encoder
     try:
         rerank_res_df = rerank_with_cross_encoder(top_n_res_df, user_query, 'summary')
     except Exception as e:
@@ -384,7 +358,7 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, token_limit=TOKEN_LIMIT
 
     # Run create_formatted_input
     try:
-        formatted_input = create_formatted_input(rerank_res_df, user_query, token_limit=token_limit)
+        formatted_input = create_formatted_input(rerank_res_df, user_query, context_token_limit=context_token_limit)
     except Exception as e:
         print(f"Error in create_formatted_input: {e}")
         return
@@ -395,12 +369,10 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, token_limit=TOKEN_LIMIT
     except Exception as e:
         print(f"Error in get_final_answer: {e}")
         return
-
-    # Output a string containing the user query, model response, and cited sources
-    # print_results(rerank_res_df, user_query, response)
     
     # Create a string containing the user query, model response, and cited sources
-    result = f"## New Query:\n{user_query}\n## Model Response:\n{response}\n"
+    # result = f"## New Query:\n{user_query}\n## Model Response:\n{response}\n"
+    result = f"## Model Response:\n{response}\n"
     citation_numbers = extract_citation_numbers_in_brackets(response)
     for citation in citation_numbers:
         i = int(citation) - 1  # convert string to int and adjust for 0-indexing
