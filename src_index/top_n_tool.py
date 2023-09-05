@@ -291,7 +291,7 @@ def print_results(df: pd.DataFrame, query: str, response: str) -> None:
     citation_numbers = extract_citation_numbers_in_brackets(response)
     print(f"## New Query:")
     print(f"{query}")
-    print(f"## Model Response:")
+    # print(f"## Model Response:")
     print(f"{response}")
     print_cited_sources(df, citation_numbers)
     
@@ -372,7 +372,7 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, context_token_limit=CON
     
     # Create a string containing the user query, model response, and cited sources
     # result = f"## New Query:\n{user_query}\n## Model Response:\n{response}\n"
-    result = f"## Model Response:\n{response}\n"
+    result = f"\n{response}\n"
     citation_numbers = extract_citation_numbers_in_brackets(response)
     for citation in citation_numbers:
         i = int(citation) - 1  # convert string to int and adjust for 0-indexing

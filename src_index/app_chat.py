@@ -76,14 +76,16 @@ def get_llm(temperature: float = 0, model: str = "gpt-3.5-turbo"):
     return llm
 
 
+
 def display_description():
     """Displays the description of the app."""
-    st.markdown("<h4 style='text-align: left;'>Search a knowledge bank of past questions</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: left;'>Work with an AI research assistant</h4>", unsafe_allow_html=True)
     st.write(
         """
-        Why use this tool?
-        - 👉 Find cases relevant to your new question
-        - 👉 Get an automated report with citations
+        Why use an AI agent?
+        - 🧰 Agents have access to tools 
+        - 🔧 Tools are small programs that do specific tasks
+        - 👉 You give the instructions, and the agent figures out which tool, or set of tools to use
         """
     )
     
@@ -106,12 +108,6 @@ def display_known_issues():
             - 🚨 Citations are accurate, but the generated text might be hallucinated (rare)
             """
         )
-
-def print_response(query: str, response: str) -> None:
-    st.markdown(f"## Query:")
-    st.markdown(f"{query}")
-    st.markdown(f"## Model Response:")
-    st.markdown(f"{response}")
     
     
 def print_sources(df: pd.DataFrame, response: str) -> None:
@@ -137,10 +133,18 @@ def b_get_feedback():
             st.toast("✔️ Feedback received! Thanks for being in the loop 👍\nClick the `Feedback` button to open or close this anytime.")
 
 
+@st.cache_resource
+def get_agent():
+    function_tool = FunctionTool.from_defaults(fn=get_top_n_report)
+    llm = OpenAI(model="gpt-3.5-turbo")
+    agent = st_utils.ReActAgentWrapperReasoning.from_tools([function_tool], llm=llm, verbose=True)
+    return agent
+
+
 def app():
     """Main function that runs the Streamlit app."""
     st.markdown(
-        "<h2 style='text-align: left;'>GPT Researcher 📚</h2>",
+        "<h2 style='text-align: left;'>GPT Research Agent 📚</h2>",
         unsafe_allow_html=True,
     )
     
@@ -151,13 +155,13 @@ def app():
     )
 
     load_dotenv()
-    df = get_df()
+    # df = get_df()
     # # search_engine = init_search_engine(df)
     # llm = get_llm(model=model)
     function_tool = FunctionTool.from_defaults(fn=get_top_n_report)
     llm = OpenAI(model="gpt-3.5-turbo")
-    agent = ReActAgent.from_tools([function_tool], llm=llm, verbose=True)
-    
+    # agent = st_utils.ReActAgentWrapperReasoning.from_tools([function_tool], llm=llm, verbose=True)
+    agent = get_agent()
     
     # Add a reset button to the sidebar
     reset_button = st.sidebar.button("Reset & Clear")
@@ -167,6 +171,7 @@ def app():
     
 
     display_description()
+    b_get_feedback()
     # Display sample questions
     with st.expander("❓ Here are some example questions you can ask:", expanded=False):
         st.markdown(
@@ -180,32 +185,44 @@ def app():
     st.session_state.setdefault('chat_history', [])
 
     # Get the query from the user and sumit button
-    query = st.chat_input(placeholder="Ask me anything!")
+    # query = st.chat_input(placeholder="Ask me anything!")
 
     # Add the button to the empty container
     # button = st.button("Generate Report", type='primary')
     # st.dataframe(df[display_cols].head())
-    
-    if query:
+ 
+    if query:= st.chat_input(placeholder="Ask me anything!"):
         # with st.status("⏳ Researching past similar cases ...", expanded=True):
         start_time_total = time.time()  # Record the start time
-        # answer = run_tool(query, top_n=10, model_name=model)
-        answer = agent.chat(query)
+        response = agent.chat(query)
+        thought = agent.reasoning_steps_history[0][0].thought
+        action = agent.reasoning_steps_history[0][0].action
+        action_input = agent.reasoning_steps_history[0][0].action_input
+        observation = agent.reasoning_steps_history[0][1].observation
         # Store conversation
-        st.session_state.chat_history.append(f"{query}")
-        st.session_state.chat_history.append(f"{answer}")
+        st.session_state.chat_history.append((f"{query}", "user"))
+        if thought is not None:
+            st.session_state.chat_history.append((f"Thought:<br>{thought}", "bot"))
+        if action is not None:
+            st.session_state.chat_history.append((f"Action:<br>{action}", "bot"))
+        if action_input is not None:
+            st.session_state.chat_history.append((f"Action Input:<br>{action_input}", "bot"))
+        if observation is not None:
+            st.session_state.chat_history.append((f"Action Output:<br>{observation}", "bot"))
+        st.session_state.chat_history.append((f"{response}", "bot"))
         end_time_total = time.time()  # Record the end time
         total_time = end_time_total - start_time_total  # Calculate total runtime
         st.success(f"Research Complete! 🕰️ Total runtime: {total_time:.2f} seconds")
-    # Display conversation in reverse order
-        for i, message in enumerate(st.session_state.chat_history):
-            if i % 2 == 0: st.markdown(user_template.replace("{{MSG}}", message), unsafe_allow_html=True)
-            else: st.markdown(bot_template.replace("{{MSG}}", message), unsafe_allow_html=True)
+        # Display conversation in reverse order
+        for message, sender in st.session_state.chat_history:
+            if sender == "user": 
+                st.markdown(user_template.replace("{{MSG}}", message), unsafe_allow_html=True)
+            else: 
+                st.markdown(bot_template.replace("{{MSG}}", message), unsafe_allow_html=True)
 
 
     # display_known_issues()
     # display_warning()
-    b_get_feedback()
 
 if __name__ == "__main__":
     app()

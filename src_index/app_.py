@@ -58,12 +58,12 @@ def get_llm(temperature: float = 0, model: str = "gpt-3.5-turbo"):
 
 def display_description():
     """Displays the description of the app."""
-    st.markdown("<h4 style='text-align: left;'>Search a knowledge bank of past questions</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: left;'>Have AI work for you by rearching a vast knowledge bank of past questions</h4>", unsafe_allow_html=True)
     st.write(
         """
         Why use this tool?
         - 👉 Find cases relevant to your new question
-        - 👉 Get an automated history report with citations
+        - 👉 Get an automated report with citations
         """
     )
     
@@ -108,13 +108,13 @@ def b_get_feedback():
         feedback_text = st.text_input("Please provide your feedback")
         feedback_score = st.number_input("Rate your experience (0-10)", min_value=0, max_value=10)
         user_feedback = pd.DataFrame({"Feedback_Text": [feedback_text], "Feedback_Score": [feedback_score]})
-        if button('Send', key="send_feedback"):
+        if st.button('Send', key="send_feedback"):
             if os.path.exists("user_feedback.csv"):
                 user_feedback.to_csv("user_feedback.csv", mode='a', header=False, index=False)
             else:
                 user_feedback.to_csv("user_feedback.csv", index=False)
             time.sleep(1)
-            st.toast("✔️ Feedback received! Thanks for being in the loop 👍\nClick the `Feedback` button to open or close this anytime.")
+            st.toast("✔️ Feedback received! Thank you 👍\nClick `Feedback` to Open or Close this anytime.")
 
 
 

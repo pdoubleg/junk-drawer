@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Tuple
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 from tqdm import tqdm
@@ -23,10 +23,67 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+from llama_index.agent import ReActAgent
+from llama_index.llms.base import ChatResponse
+from llama_index.agent.react.types import BaseReasoningStep
 import openai
 import streamlit as st
 
 from langchain.chat_models import ChatOpenAI
+
+
+# Llama Index Data Agent
+class ReActAgentWrapperReasoning(ReActAgent):
+    """
+    A wrapper class for the ReActAgent class that includes additional functionality for reasoning steps.
+
+    Attributes:
+        reasoning_steps_history (list): A list to store the history of reasoning steps.
+        latest_reasoning_step (BaseReasoningStep): The latest reasoning step.
+    """
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initializes the ReActAgentWrapperReasoning with the given arguments and keyword arguments.
+        Also initializes an empty list for reasoning_steps_history and sets latest_reasoning_step to None.
+        """
+        super().__init__(*args, **kwargs)
+        self.reasoning_steps_history = []
+        self.latest_reasoning_step = None
+
+    def _process_actions(
+        self, output: ChatResponse
+    ) -> Tuple[List[BaseReasoningStep], bool]:
+        """
+        Processes the actions and updates the reasoning steps history and the latest reasoning step.
+
+        Args:
+            output (ChatResponse): The output from the chat.
+
+        Returns:
+            Tuple[List[BaseReasoningStep], bool]: A tuple containing a list of reasoning steps and a boolean indicating if the process is done.
+        """
+        reasoning_steps, is_done = super()._process_actions(output)
+        self.reasoning_steps_history.append(reasoning_steps)
+        self.latest_reasoning_step = reasoning_steps[-1] if reasoning_steps else None
+        return reasoning_steps, is_done
+
+    async def _aprocess_actions(
+        self, output: ChatResponse
+    ) -> Tuple[List[BaseReasoningStep], bool]:
+        """
+        Asynchronously processes the actions and updates the reasoning steps history and the latest reasoning step.
+
+        Args:
+            output (ChatResponse): The output from the chat.
+
+        Returns:
+            Tuple[List[BaseReasoningStep], bool]: A tuple containing a list of reasoning steps and a boolean indicating if the process is done.
+        """
+        reasoning_steps, is_done = await super()._aprocess_actions(output)
+        self.reasoning_steps_history.append(reasoning_steps)
+        self.latest_reasoning_step = reasoning_steps[-1] if reasoning_steps else None
+        return reasoning_steps, is_done
 
 
 
@@ -65,6 +122,7 @@ def count_tokens(text: str) -> int:
     return len(encoding.encode(text))
 
 
+# Citation logic
 def extract_citation_numbers_in_brackets(text: str) -> List[str]:
     """
     Captures citations from LLM response. 
@@ -80,6 +138,11 @@ def extract_citation_numbers_in_brackets(text: str) -> List[str]:
     matches = re.findall(r'\[(\d+)\]', text)
     return list(set(matches))
 
+
+# Display helpers
+
+def pretty_format_dict(d):
+    return '\n'.join(f'{k}: {v}' for k, v in d.items())
 
 def print_cited_sources(df: pd.DataFrame, citation_numbers: List[str]) -> None:
     """
@@ -114,6 +177,7 @@ def print_keyword_tags(df: pd.DataFrame, citation_numbers: List[str], keyword_co
     st.markdown(f" **Keyword Tags:** {keyword_str}")
 
 
+# Top n RAG pipeline steps
 def get_llm_fact_pattern_summary(df: pd.DataFrame, text_col_name: str) -> pd.DataFrame:
     """
     Function for using an LLM to prep top n search results.
@@ -164,6 +228,7 @@ def get_llm_fact_pattern_summary(df: pd.DataFrame, text_col_name: str) -> pd.Dat
     return df
 
 
+# Prior version using Instructor model embeddings
 # def rerank_instructor(query_embeddings_model,
 #            doc_embeddings_model,
 #            df: pd.DataFrame, 
@@ -278,6 +343,7 @@ def create_context(df: pd.DataFrame, query: str, context_token_limit: int = 3000
 
 
 
+# Construct the final prompt
 def create_formatted_input(df: pd.DataFrame, query: str, context_token_limit: int = 3000,
     instructions: str ="""Instructions: Using the provided search results, write a detailed comparative analysis for a new query. ALWAYS cite results using [[number](URL)] notation after the reference. End your answer with a summary. \n\nNew Query:""",
 ) -> str:
@@ -304,7 +370,7 @@ def create_formatted_input(df: pd.DataFrame, query: str, context_token_limit: in
     
 
 
-# Main chain
+# Main chain - Adds system message and passes formatted prompt to LLM
 def get_final_answer(formatted_input: str, llm) -> str:
     
     main_system_template = "You are helpful legal research assistant. Analyze the current legal question, and compare it to past cases. Using only the provided context, offer insights into how the researcher can use the past questions to address the new outstanding issue. Remember to use markdown links when citing the context, for example [[number](URL)]."
@@ -329,9 +395,9 @@ def get_final_answer(formatted_input: str, llm) -> str:
 def print_results(df: pd.DataFrame, query: str, response: str) -> None:
     """Helper that prints everything"""
     citation_numbers = extract_citation_numbers_in_brackets(response)
-    st.markdown(f"## New Query:")
+    # st.markdown(f"## New Query:")
     st.markdown(f"{query}")
-    st.markdown(f"## Model Response:")
+    # st.markdown(f"## Model Response:")
     st.markdown(f"{response}")
     print_cited_sources(df, citation_numbers)
     # print_keyword_tags(df, citation_numbers, "key_phrases_mmr")
