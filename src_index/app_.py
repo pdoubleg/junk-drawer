@@ -1,7 +1,7 @@
 import streamlit as st
 st.set_page_config(layout="wide")
 import streamlit.components.v1 as components
-from streamlit_feedback import streamlit_feedback
+from streamlit_extras.stateful_button import button
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -103,24 +103,18 @@ def print_sources(df: pd.DataFrame, response: str) -> None:
 #     st_utils.print_keyword_tags(df, citation_numbers, keyword_col_name)
 
 
-# Function to get and save the session info
-def dump_logs(query, response, feedback):
-    # Create a dictionary of query details
-    query_details = {
-        "timestamp": time.time(),
-        "query": query,
-        "response": response,
-        "feedback": feedback,
-    }
-    # Convert the dictionary into a DataFrame
-    df_query_details = pd.DataFrame([query_details])
-    # Check if the csv file already exists
-    if not os.path.isfile('feedback.csv'):
-        # If not, write the DataFrame to a new csv file
-        df_query_details.to_csv('feedback.csv', index=False)
-    else:
-        # If the file exists, append the DataFrame to the existing csv file
-        df_query_details.to_csv('feedback.csv', mode='a', header=False, index=False)
+def b_get_feedback():
+    if button('Feedback', key="open_feedback"):
+        feedback_text = st.text_input("Please provide your feedback")
+        feedback_score = st.number_input("Rate your experience (0-10)", min_value=0, max_value=10)
+        user_feedback = pd.DataFrame({"Feedback_Text": [feedback_text], "Feedback_Score": [feedback_score]})
+        if button('Send', key="send_feedback"):
+            if os.path.exists("user_feedback.csv"):
+                user_feedback.to_csv("user_feedback.csv", mode='a', header=False, index=False)
+            else:
+                user_feedback.to_csv("user_feedback.csv", index=False)
+            time.sleep(1)
+            st.toast("✔️ Feedback received! Thanks for being in the loop 👍\nClick the `Feedback` button to open or close this anytime.")
 
 
 
@@ -168,6 +162,7 @@ def app():
     llm = get_llm(model=model)
 
     display_description()
+    b_get_feedback()
 
     # Create a placeholder for the text area
     query_placeholder = st.empty()

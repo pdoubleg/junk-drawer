@@ -1,6 +1,7 @@
 import streamlit as st
 st.set_page_config(layout="wide")
 import streamlit.components.v1 as components
+from streamlit_extras.stateful_button import button
 from top_n_tool import run_tool
 import os
 from dotenv import load_dotenv
@@ -24,6 +25,10 @@ from langchain.prompts import PromptTemplate
 from langchain.callbacks import get_openai_callback
 from langchain.cache import SQLiteCache
 langchain.llm_cache = SQLiteCache(database_path=".st_langchain.db")
+
+from llama_index.agent import ReActAgent
+from llama_index.llms import OpenAI
+from llama_index.tools.function_tool import FunctionTool
 
 from semantic_search import SemanticSearch
 from langchain.chat_models import ChatOpenAI
@@ -49,6 +54,14 @@ def get_df():
     df['text_label'] = pd.Categorical(df['text_label'])
     df['topic_title'] = pd.Categorical(df['topic_title'])
     return df
+
+
+
+def get_top_n_report(query: str, top_n: int) -> str:
+    """
+    Takes a user query and returns a string of top n similar texts.
+    """
+    return run_tool(query, top_n)
 
 
 
@@ -110,6 +123,20 @@ def print_sources(df: pd.DataFrame, response: str) -> None:
 #     st_utils.print_keyword_tags(df, citation_numbers, keyword_col_name)
 
 
+def b_get_feedback():
+    if button('Feedback', key="open_feedback"):
+        feedback_text = st.text_input("Please provide your feedback")
+        feedback_score = st.number_input("Rate your experience (0-10)", min_value=0, max_value=10)
+        user_feedback = pd.DataFrame({"Feedback_Text": [feedback_text], "Feedback_Score": [feedback_score]})
+        if button('Send', key="send_feedback"):
+            if os.path.exists("user_feedback.csv"):
+                user_feedback.to_csv("user_feedback.csv", mode='a', header=False, index=False)
+            else:
+                user_feedback.to_csv("user_feedback.csv", index=False)
+            time.sleep(1)
+            st.toast("✔️ Feedback received! Thanks for being in the loop 👍\nClick the `Feedback` button to open or close this anytime.")
+
+
 def app():
     """Main function that runs the Streamlit app."""
     st.markdown(
@@ -117,27 +144,30 @@ def app():
         unsafe_allow_html=True,
     )
     
-        # Add a sidebar dropdown for model selection
+    # Add a sidebar dropdown for model selection
     model = st.sidebar.selectbox(
         'Select Model',
         ('gpt-3.5-turbo', 'gpt-4')
     )
-    display_cols = [
-        'id',
-        'datestamp',
-        'State',
-        'text_label',
-        'llm_title',
-        'topic_title',
-        'body',
-    ]
-    # load_dotenv()
+
+    load_dotenv()
     df = get_df()
     # # search_engine = init_search_engine(df)
     # llm = get_llm(model=model)
+    function_tool = FunctionTool.from_defaults(fn=get_top_n_report)
+    llm = OpenAI(model="gpt-3.5-turbo")
+    agent = ReActAgent.from_tools([function_tool], llm=llm, verbose=True)
+    
+    
+    # Add a reset button to the sidebar
+    reset_button = st.sidebar.button("Reset & Clear")
+    if reset_button:
+        st.session_state.clear()  # Clear the session state to reset the app
+        agent.reset()
+    
 
     display_description()
-        # Display sample questions
+    # Display sample questions
     with st.expander("❓ Here are some example questions you can ask:", expanded=False):
         st.markdown(
             """
@@ -159,10 +189,11 @@ def app():
     if query:
         # with st.status("⏳ Researching past similar cases ...", expanded=True):
         start_time_total = time.time()  # Record the start time
-        answer = run_tool(query, top_n=10, model_name=model)
+        # answer = run_tool(query, top_n=10, model_name=model)
+        answer = agent.chat(query)
         # Store conversation
-        st.session_state.chat_history.append(f"{markdown.markdown(query)}")
-        st.session_state.chat_history.append(f"{markdown.markdown(answer)}")
+        st.session_state.chat_history.append(f"{query}")
+        st.session_state.chat_history.append(f"{answer}")
         end_time_total = time.time()  # Record the end time
         total_time = end_time_total - start_time_total  # Calculate total runtime
         st.success(f"Research Complete! 🕰️ Total runtime: {total_time:.2f} seconds")
@@ -174,7 +205,7 @@ def app():
 
     # display_known_issues()
     # display_warning()
-
+    b_get_feedback()
 
 if __name__ == "__main__":
     app()
