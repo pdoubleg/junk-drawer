@@ -135,3 +135,44 @@ class ResearchPastQuestions(BaseTool):
         """Use the tool asynchronously."""
         raise NotImplementedError("research_past_questions does not support async")
     
+    
+from llama_index.chat_engine.types import AgentChatResponse, StreamingAgentChatResponse
+from llama_index.llms.base import ChatMessage, MessageRole
+from llama_index.agent.react.types import BaseReasoningStep
+from typing import List
+
+    
+class ReActAgentWrapper(ReActAgent):
+    # ... other methods ...
+
+    @trace_method("chat")
+    def chat(
+        self, message: str, use_case: str, chat_history: Optional[List[ChatMessage]] = None
+    ) -> AgentChatResponse:
+        """Chat."""
+        if chat_history is not None:
+            self._memory.set(chat_history)
+
+        self._memory.put(ChatMessage(content=message, role="user"))
+
+        current_reasoning: List[BaseReasoningStep] = []
+        # start loop
+        for _ in range(self._max_iterations):
+            # prepare inputs
+            input_chat = self._react_chat_formatter.format(
+                chat_history=self._memory.get(), current_reasoning=current_reasoning
+            )
+            # send prompt
+            chat_response = self._llm.chat(input_chat, use_case=use_case)  # pass use_case to LLM
+            # given react prompt outputs, call tools or return response
+            reasoning_steps, is_done = self._process_actions(output=chat_response)
+            current_reasoning.extend(reasoning_steps)
+            if is_done:
+                break
+
+        response = self._get_response(current_reasoning)
+        self._memory.put(
+            ChatMessage(content=response.response, role=MessageRole.ASSISTANT)
+        )
+        return response
+    
