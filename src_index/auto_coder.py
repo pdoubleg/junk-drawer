@@ -17,6 +17,8 @@ from langchain.tools import BaseTool
 from langchain.tools.base import ToolException
 from langchain.callbacks.manager import CallbackManagerForToolRun, AsyncCallbackManagerForToolRun
 
+from llama_index.agent import ReActAgent
+
 
 # Tool default values
 MODEL_NAME = "gpt-3.5-turbo"
@@ -142,12 +144,31 @@ from llama_index.agent.react.types import BaseReasoningStep
 from typing import List
 
     
-class ReActAgentWrapper(ReActAgent):
-    # ... other methods ...
+from typing import Optional
+from llama_index.chat_engine.types import AgentChatResponse
+from llama_index.llms.base import ChatMessage, MessageRole
+from llama_index.agent.react.types import BaseReasoningStep
+from typing import List, Tuple
+from llama_index.llms.base import ChatMessage, MessageRole, ChatResponse
 
-    @trace_method("chat")
+
+class ReActAgentWrapper(ReActAgent):
+    def _process_actions(
+        self, output: ChatResponse
+    ) -> Tuple[List[BaseReasoningStep], bool]:
+        reasoning_steps, is_done = super()._process_actions(output)
+        print("Reasoning Steps:", reasoning_steps)
+        return reasoning_steps, is_done
+
+    async def _aprocess_actions(
+        self, output: ChatResponse
+    ) -> Tuple[List[BaseReasoningStep], bool]:
+        reasoning_steps, is_done = await super()._aprocess_actions(output)
+        print("Reasoning Steps:", reasoning_steps)
+        return reasoning_steps, is_done
+    # @trace_method("chat")
     def chat(
-        self, message: str, use_case: str, chat_history: Optional[List[ChatMessage]] = None
+        self, message: str, use_case: str = "some cool use case", chat_history: Optional[List[ChatMessage]] = None
     ) -> AgentChatResponse:
         """Chat."""
         if chat_history is not None:
@@ -175,4 +196,5 @@ class ReActAgentWrapper(ReActAgent):
             ChatMessage(content=response.response, role=MessageRole.ASSISTANT)
         )
         return response
+    
     

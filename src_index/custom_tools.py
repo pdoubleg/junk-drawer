@@ -25,14 +25,16 @@ TOKEN_LIMIT = 3000
 
 class ResearchSchema(BaseModel):
     query: str = Field(description="the exact text the user wants to query")
-    # ton_n: int = Field(description="should be a number")
-    # model_name: str = Field(description="should be an OpenAI model name")
-    # context_token_limit: int = Field(description="should be a number")
+    ton_n: Optional[int] = Field(description="should be a number")
+    model_name: Optional[str] = Field(description="should be an OpenAI model name")
+    context_token_limit: Optional[int] = Field(description="should be a number")
+
+
 
 
 class ResearchPastQuestions(BaseTool):
-    name = "research_past_questions"
-    description = "useful for taking in a user given query and returning similar cases"
+    name = "Research Past Questions"
+    description = "useful for finding top n most similar text for a specified query. if given a query it should be passed to this tool unedited."
     return_direct = True
     args_schema: Type[ResearchSchema] = ResearchSchema
     handle_tool_error = True
@@ -49,9 +51,9 @@ class ResearchPastQuestions(BaseTool):
     def _run(
         self, 
         user_query: str, 
-        # top_n: int = 5, 
-        # model_name: str = MODEL_NAME, 
-        # context_token_limit: int = TOKEN_LIMIT,
+        top_n: int = 5, 
+        model_name: str = MODEL_NAME, 
+        context_token_limit: int = TOKEN_LIMIT,
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """
@@ -68,7 +70,7 @@ class ResearchPastQuestions(BaseTool):
         df = get_df()
         load_dotenv()
         search_engine = SemanticSearch(df)
-        llm = get_llm(model="gpt-3.5-turbo")
+        llm = get_llm(model=model_name)
 
         # Create instance of SemanticSearch
         search_engine = SemanticSearch(df)
@@ -76,7 +78,7 @@ class ResearchPastQuestions(BaseTool):
         # Query top n
         top_n_res_df = search_engine.query_similar_documents(
             user_query,
-            top_n = 10,
+            top_n = top_n,
             filter_criteria = None,
             use_cosine_similarity = True,
             similarity_threshold = 0.93)
@@ -97,7 +99,7 @@ class ResearchPastQuestions(BaseTool):
 
         # Run create_formatted_input
         try:
-            formatted_input = create_formatted_input(rerank_res_df, user_query, context_token_limit=3000)
+            formatted_input = create_formatted_input(rerank_res_df, user_query, context_token_limit=context_token_limit)
         except Exception as e:
             raise ToolException(f"Error in create_formatted_input: {e}")
             return
