@@ -10,7 +10,7 @@ python = "^3.10.0"
 langchain = {extras = ["docarray"], version = "^0.0.247"}
 openai = "^0.27.8"
 llama-index = "0.7.14"
-streamlit = "1.25.0"
+streamlit = "1.26.0"
 faiss-cpu = "^1.7.4"
 python-dotenv = "^1.0.0"
 transformers = "^4.30.2"
