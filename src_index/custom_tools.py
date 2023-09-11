@@ -1,4 +1,6 @@
 import os
+import pandas as pd
+from pydantic import BaseModel, Field, validator
 from dotenv import load_dotenv
 
 from pydantic import BaseModel, Field
@@ -9,8 +11,8 @@ from top_n_tool import (
     get_llm_fact_pattern_summary, 
     rerank_with_cross_encoder, 
     create_formatted_input, 
+    add_month_year_to_df,
     get_final_answer,
-    get_df,
     get_llm
     )
 from langchain.tools import BaseTool
@@ -21,6 +23,7 @@ from langchain.callbacks.manager import CallbackManagerForToolRun, AsyncCallback
 # Tool default values
 MODEL_NAME = "gpt-3.5-turbo"
 TOKEN_LIMIT = 3000
+DATA_PATH = "reddit_legal_cluster_test_results.parquet"
 
 
 class ResearchSchema(BaseModel):
@@ -30,9 +33,17 @@ class ResearchSchema(BaseModel):
     context_token_limit: Optional[int] = Field(description="should be a number")
 
 
-
-
 class ResearchPastQuestions(BaseTool):
+    df: pd.DataFrame = Field(...)
+
+    @validator('df')
+    def must_be_a_dataframe(cls, v):
+        if not isinstance(v, pd.DataFrame):
+            raise ValueError('df must be a pandas DataFrame')
+        return v
+
+    def __init__(self, **data):
+        super().__init__(**data)
     name = "Research Past Questions"
     description = "useful for finding top n most similar text for a specified query. if given a query it should be passed to this tool unedited."
     return_direct = True
@@ -67,13 +78,12 @@ class ResearchPastQuestions(BaseTool):
             str: A string containing the user query, model response, and cited sources.
         """
         # Read in a df
-        df = get_df()
+        # df = pd.read_parquet("reddit_legal_cluster_test_results.parquet")
         load_dotenv()
-        search_engine = SemanticSearch(df)
         llm = get_llm(model=model_name)
 
         # Create instance of SemanticSearch
-        search_engine = SemanticSearch(df)
+        search_engine = SemanticSearch(self.df)
 
         # Query top n
         top_n_res_df = search_engine.query_similar_documents(
@@ -110,6 +120,7 @@ class ResearchPastQuestions(BaseTool):
         except Exception as e:
             raise ToolException(f"Error in get_final_answer: {e}")
             return
+        
         
         # Create a string containing the user query, model response, and cited sources
         result = f"## New Query:\n{user_query}\n## Model Response:\n{response}\n"

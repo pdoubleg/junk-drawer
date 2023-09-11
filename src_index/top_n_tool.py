@@ -37,6 +37,25 @@ def count_tokens(text: str) -> int:
     return len(encoding.encode(text))
 
 
+def add_month_year_to_df(df: pd.DataFrame, date_col_name: str) -> pd.DataFrame:
+    """
+    Create 'Jan 2023' formatted date. Used for printing citations.
+    
+    Example: df = add_month_year_to_df(df, 'coverage_date_completed')
+    
+    Args:
+        df (pd.DataFrame): Dataframe containing a datetime column.
+        date_col_name (str): The column containing the date.
+    Returns:
+        pd.DataFrame: Input df with a new column named 'datestamp'.
+    """
+    df[date_col_name] = pd.to_datetime(df[date_col_name])
+    df['datestamp'] = df[date_col_name].dt.to_period('M')
+    df['datestamp'] = df['datestamp'].dt.strftime('%b %Y')
+    df['datestamp'] = df['datestamp'].astype('string')
+    return df
+
+
 def extract_citation_numbers_in_brackets(text: str) -> List[str]:
     """
     Captures citations from LLM response. 
@@ -63,11 +82,10 @@ def print_cited_sources(df: pd.DataFrame, citation_numbers: List[str]) -> None:
         i = int(citation) - 1  # convert string to int and adjust for 0-indexing
         title = df.iloc[i]["llm_title"]
         link = f"{df.iloc[i]['full_link']}"
-        # link = f"{df.iloc[i]['full_link']}"
         venue = df.iloc[i]["State"]
         date = df.iloc[i]["datestamp"]
         number = df.iloc[i]["index"]
-        print(f"###### {[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}")
+        print(f"###### {[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}\n\n")
 
 
 
