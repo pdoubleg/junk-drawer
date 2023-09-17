@@ -159,9 +159,11 @@ def app():
         df = df[df['datestamp'].isin(dates)]     
     
     search_engine = init_search_engine(df)
+    
     llm = get_llm(model=model)
 
     display_description()
+    
     b_get_feedback()
 
     # Create a placeholder for the text area

@@ -31,9 +31,11 @@ import streamlit as st
 
 from langchain.chat_models import ChatOpenAI
 
+from auto_coder import ReActAgentWrapper
+
 
 # Llama Index Data Agent
-class ReActAgentWrapperReasoning(ReActAgent):
+class ReActAgentWrapperReasoning(ReActAgentWrapper):
     """
     A wrapper class for the ReActAgent class that includes additional functionality for reasoning steps.
 
@@ -345,7 +347,7 @@ def create_context(df: pd.DataFrame, query: str, context_token_limit: int = 3000
 
 # Construct the final prompt
 def create_formatted_input(df: pd.DataFrame, query: str, context_token_limit: int = 3000,
-    instructions: str ="""Instructions: Using the provided search results, write a detailed comparative analysis for a new query. ALWAYS cite results using [[number](URL)] notation after the reference. End your answer with a summary. \n\nNew Query:""",
+    instructions: str ="""Instructions: Using the provided search results, write a detailed comparative analysis for a new query. ALWAYS cite results using [[number](URL)] notation after the reference. \n\nNew Query:""",
 ) -> str:
     """
     Creates formatted prompt combining top n search results (context), the target query, and final instructions for the LLM.

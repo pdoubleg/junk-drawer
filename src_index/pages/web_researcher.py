@@ -14,15 +14,31 @@ from langchain.tools import DuckDuckGoSearchRun
 from langchain.utilities import WikipediaAPIWrapper
 from langchain.vectorstores import Chroma
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
+from langchain.chains import RetrievalQA
 from langchain.chains import VectorDBQA
 from langchain.retrievers import SelfQueryRetriever
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.chains.question_answering import load_qa_chain
-from langchain.tools import PubmedQueryRun
 from langchain import LLMMathChain
 import sqlite3
 import pandas as pd
 import os
+
+from custom_tools import ResearchPastQuestions
+
+
+DATA_PATH = "reddit_legal_cluster_test_results.parquet"
+
+
+def get_df():
+    """Returns a pandas DataFrame."""
+    df = pd.read_parquet(DATA_PATH)
+    df['timestamp'] = pd.to_datetime(df['created_utc'], unit='s')
+    df['datestamp'] = df['timestamp'].dt.date
+    df['State'] = pd.Categorical(df['State'])
+    df['text_label'] = pd.Categorical(df['text_label'])
+    df['topic_title'] = pd.Categorical(df['topic_title'])
+    return df
 
 
 def create_research_db():
@@ -62,11 +78,12 @@ def insert_research(user_input, introduction, quant_facts, publications, books, 
 
 def generate_research(userInput):
     global tools
+    df = get_df()
     llm=OpenAI(temperature=0.7)
     wiki = WikipediaAPIWrapper()
     DDGsearch = DuckDuckGoSearchRun()
-    pubmed = PubmedQueryRun()
     llm_math_chain = LLMMathChain(llm=llm, verbose=True)
+    research_past_questions = ResearchPastQuestions(df=df)
 
     tools = [
         Tool(
@@ -85,12 +102,13 @@ def generate_research(userInput):
             description='Useful for mathematical questions and operations'
         ),
         Tool(
-            name='Pubmed Science and Medical Journal Research Tool',
-            func=pubmed.run,
-            description='Useful for Pubmed science and medical research\nPubMed comprises more than 35 million citations for biomedical literature from MEDLINE, life science journals, and online books. Citations may include links to full text content from PubMed Central and publisher web sites.'
-
+            name ='Legal Questions Research Tool',
+            func=research_past_questions.run,
+            description='Useful for researching legal questions',
+            return_direct = False
         )
     ]
+    
     if st.session_state.embeddings_db:
         qa = VectorDBQA.from_chain_type(llm=llm,
                                         vectorstore=st.session_state.embeddings_db)
@@ -117,7 +135,8 @@ def generate_research(userInput):
 
         st.subheader("Introduction:")
         with st.spinner("Generating Introduction"):
-            intro = runAgent(f'Write an academic introduction about {userInput}')
+            # intro = runAgent(f'Write an academic introduction about {userInput}')
+            intro = runAgent(f"You are an actuarial documentation specialist. Using the following scenario, write a comprehensive fact-based summary that focuses on insurance and legal topics.\n\nDESCRIPTIONS:{userInput}\n\nSUMMARY:")
             st.write(intro['output'])
 
         st.subheader("Quantitative Facts:")
@@ -126,7 +145,8 @@ def generate_research(userInput):
             quantFacts = runAgent(f'''
                 Considering user input: {userInput} and the intro paragraph: {intro} 
                 \nGenerate a list of 3 to 5 quantitative facts about: {userInput}
-                \nOnly return the list of quantitative facts
+                \nOnly return the list of facts.
+                \nInclude citations with links.
             ''')
             st.write(quantFacts['output'])
 
@@ -187,15 +207,15 @@ def init_ses_states():
     st.session_state.setdefault("prev_books", None)
 
 def main():
-    st.set_page_config(page_title="Research Bot")
+    st.set_page_config(page_title="Research Bot", layout="wide")
     create_research_db()
-    llm=OpenAI(temperature=0.7)
+    llm=OpenAI(temperature=0.1)
     embedding_function = OpenAIEmbeddings()
     init_ses_states()
     if os.path.exists("./chroma_db"):
         st.session_state.embeddings_db = Chroma(persist_directory="./chroma_db", embedding_function=embedding_function)
     st.header("GPT-4 LangChain Agents Research Bot")
-    deploy_tab, prev_tab = st.tabs(["Generate Research","Previous Research"])
+    deploy_tab, prev_tab = st.tabs(["Generate Research", "Previous Research"])
     with deploy_tab:
         userInput = st.text_area(label="User Input")
         if st.button("Generate Report") and userInput:
@@ -210,6 +230,8 @@ def main():
                                         verbose=True, 
                                         memory=memory,
                                         )
+            response = chatAgent.chat(user_message)
+            st.write(response)
     with prev_tab:
         st.dataframe(read_research_table())
         selected_input = st.selectbox(label="Previous User Inputs",options=[i for i in read_research_table().user_input])

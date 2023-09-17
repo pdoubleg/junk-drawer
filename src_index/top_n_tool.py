@@ -85,7 +85,7 @@ def print_cited_sources(df: pd.DataFrame, citation_numbers: List[str]) -> None:
         venue = df.iloc[i]["State"]
         date = df.iloc[i]["datestamp"]
         number = df.iloc[i]["index"]
-        print(f"###### {[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}\n\n")
+        print(f"{[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}\n\n")
 
 
 
@@ -399,7 +399,7 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, context_token_limit=CON
         venue = rerank_res_df.iloc[i]["State"]
         date = rerank_res_df.iloc[i]["datestamp"]
         number = rerank_res_df.iloc[i]["index"]
-        result += f"##### {[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}"
+        result += f"<br><b>{[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}</b>"
 
     return result
     
