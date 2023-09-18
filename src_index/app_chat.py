@@ -15,22 +15,20 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 from io import StringIO
 import langchain
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain.callbacks import get_openai_callback
 from langchain.cache import SQLiteCache
 langchain.llm_cache = SQLiteCache(database_path=".st_langchain.db")
-
-from llama_index.agent import ReActAgent
-from llama_index.tools.function_tool import FunctionTool
-
-from llama_index.llms import LangChainLLM
+import sqlite3
+from sqlalchemy import create_engine
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.memory import ConversationBufferMemory
+from langchain.chains import LLMMathChain
 from langchain.agents import AgentType, Tool, initialize_agent
-from langchain import LLMMathChain
+from langchain.utilities import SQLDatabase
+from langchain.chains import create_sql_query_chain
+from langchain_experimental.sql import SQLDatabaseChain
 from langchain.callbacks import StreamlitCallbackHandler
+from langchain.tools import DuckDuckGoSearchRun
 
 from html_templates import css, user_template, bot_template
 
@@ -41,6 +39,11 @@ tqdm.pandas()
 # Constants
 DATA_PATH = "reddit_legal_cluster_test_results.parquet"
 
+
+def clean_names(df):
+    df.columns = [x.replace(' ', '_').lower() for x in df.columns]
+    return df
+
  
 @st.cache_data
 def get_df():
@@ -48,7 +51,7 @@ def get_df():
     df = pd.read_parquet(DATA_PATH)
     df['timestamp'] = pd.to_datetime(df['created_utc'], unit='s')
     df['datestamp'] = df['timestamp'].dt.date
-    df['State'] = pd.Categorical(df['State'])
+    # df['state'] = pd.Categorical(df['state'])
     df['text_label'] = pd.Categorical(df['text_label'])
     df['topic_title'] = pd.Categorical(df['topic_title'])
     return df
@@ -95,26 +98,48 @@ def app():
     )
 
     load_dotenv()
-
-    llm = ChatOpenAI(model=model, temperature=0.0)
-    memory = ConversationBufferMemory(memory_key="chat_history")
+    
     df = get_df()
-    llm_math_chain = LLMMathChain(llm=llm, verbose=True)
+    
+    llm = ChatOpenAI(model=model, temperature=0.0)
+    
+    table_name = "questions_table"
+    uri = "sqlite:///questions_table.db"
+    # Create the sqlalchemy engine
+    engine = create_engine(uri, echo=False)
+    # Prep column names
+    data = clean_names(df)
+    # Convert the DataFrame to SQL
+    data.to_sql(table_name, con=engine, index=False, if_exists='replace')
+    # Create connection for LangChain
+    db = SQLDatabase.from_uri(uri)
+    db_chain = SQLDatabaseChain.from_llm(llm, db, verbose=True, use_query_checker=True)
+
+    memory = ConversationBufferMemory(memory_key="chat_history")
+    DDGsearch = DuckDuckGoSearchRun()
     research_past_questions = ResearchPastQuestions(df=df)
+    
+
     
     tools = [
         Tool(
-            name ='Calculator and Math Tool',
-            func=llm_math_chain.run,
-            description='Useful for mathematical questions and operations'
+            name = "SQL Structured Data Query Tool",
+            func = db_chain.run,
+            description="Useful for answering questions using structured data query"
+        ),
+        Tool(
+            name = "Duck Duck Go Search Results Tool",
+            func = DDGsearch.run,
+            description="Useful for search for information on the internet"
         ),
         Tool(
             name ='Legal Questions Research Tool',
             func=research_past_questions.run,
-            description='Useful for researching legal questions',
+            description='Useful for finding similar legal questions for a new query',
             return_direct = False
         )
     ]
+    
     
     agent = initialize_agent(tools,
                              llm,
@@ -122,7 +147,6 @@ def app():
                              verbose=True, 
                              memory=memory,
                              )
-    
     
     # Add a reset button to the sidebar
     reset_button = st.sidebar.button("Reset & Clear")
@@ -144,30 +168,57 @@ def app():
     # Define chat history session state variable
     st.session_state.setdefault('chat_history', [])
     
-    if "messages" not in st.session_state.keys(): # Initialize the chat message history
+    if "messages" not in st.session_state: # Initialize the chat message history
         st.session_state.messages = []
     #         {"role": "assistant", "content": "Ask me a question"}
     # ]
     
-    for message in st.session_state.messages: # Display the prior chat messages
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
+    # Prompt for user input and save
+    if query := st.chat_input():
+        st.session_state.messages.append({"role": "user", "content": query})
+    
+    # display the existing chat messages
+    for message in st.session_state.messages:
+        if message["role"] == "system":
+            continue
+        if message["role"] == "user":
+            with st.chat_message(message["role"], avatar="https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/user_question_resized_pil.jpg"):
+                st.write(message["content"])
+        if message["role"] == "assistant":
+            with st.chat_message(message["role"], avatar="https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/c3po_icon_resized_pil.jpg"):
+                st.write(message["content"])
+
+
+        with st.chat_message("assistant", avatar="https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/c3po_icon_resized_pil.jpg"):
+            resp_container = st.empty()
+            st_callback = StreamlitCallbackHandler(st.container(), collapse_completed_thoughts=False)
+            response = agent.run(query, callbacks=[st_callback])
+
+            resp_container.markdown(response)
+
+            message = {"role": "assistant", "content": response}
+    # for message in st.session_state.messages: # Display the prior chat messages
+    #     with st.chat_message(message["role"]):
+    #         st.write(message["content"])
             
  
-    if query:= st.chat_input(placeholder="Ask me anything!"):
-        st.session_state.messages.append({"role": "user", "content": query})
-        st_callback = StreamlitCallbackHandler(st.container(), collapse_completed_thoughts=False)
-        response = agent.run(query, callbacks=[st_callback])
-        # Append the response to the session_state messages
-        # st.session_state.messages.append({"role": "assistant", "content": st_callback})
-        st.write(st_callback)
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        # Display conversation in reverse order
-        for message in reversed(st.session_state.messages):
-            if message["role"] == "user": 
-                st.markdown(user_template.replace("{{MSG}}", message["content"]), unsafe_allow_html=True)
-            else: 
-                st.markdown(bot_template.replace("{{MSG}}", message["content"]), unsafe_allow_html=True)
+    # if query:= st.chat_input(placeholder="Ask me anything!"):
+    #     st.session_state.messages.append({"role": "user", "content": query})
+    #     col1, col2 = st.columns([1, 9])
+    #     with col1:
+    #         st.image("https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/c3po_icon_resized_pil.jpg")
+
+    #     with col2:
+    #         st_callback = StreamlitCallbackHandler(st.container(), collapse_completed_thoughts=False)
+    #     response = agent.run(query, callbacks=[st_callback])
+    #     # Append the response to the session_state messages
+    #     st.session_state.messages.append({"role": "assistant", "content": response})
+    #     # Display conversation in reverse order
+    #     for message in reversed(st.session_state.messages):
+    #         if message["role"] == "user": 
+    #             st.markdown(user_template.replace("{{MSG}}", message["content"]), unsafe_allow_html=True)
+    #         else: 
+    #             st.markdown(bot_template.replace("{{MSG}}", message["content"]), unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

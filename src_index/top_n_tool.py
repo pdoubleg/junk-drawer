@@ -396,7 +396,7 @@ def run_tool(user_query, top_n=5, model_name=MODEL_NAME, context_token_limit=CON
         i = int(citation) - 1  # convert string to int and adjust for 0-indexing
         title = rerank_res_df.iloc[i]["llm_title"]
         link = f"{rerank_res_df.iloc[i]['full_link']}"
-        venue = rerank_res_df.iloc[i]["State"]
+        venue = rerank_res_df.iloc[i]["state"]
         date = rerank_res_df.iloc[i]["datestamp"]
         number = rerank_res_df.iloc[i]["index"]
         result += f"<br><b>{[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}</b>"

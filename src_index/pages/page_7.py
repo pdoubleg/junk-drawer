@@ -107,8 +107,8 @@ res = results_container.container()
 source = sources_container.container()
 
 if prompt := st.text_input(label="Send a message"):
-    st.chat_message("user").write(prompt)
-    with st.chat_message("assistant"):
+    st.chat_message("user", avatar="https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/c3po_icon_resized_pil.jpg").write(prompt)
+    with st.chat_message("assistant", avatar="https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/user_question_resized_pil.jpg"):
         st_callback = StreamlitCallbackHandler(
         parent_container=res,
         max_thought_containers=5,
