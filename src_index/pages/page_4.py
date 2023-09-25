@@ -44,7 +44,7 @@ def configure_qa_chain(uploaded_files):
 
     # Setup LLM and QA chain
     llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo", temperature=0, streaming=False
+        model_name="gpt-3.5-turbo", temperature=0, streaming=True
     )
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm, retriever=retriever, memory=memory, verbose=True

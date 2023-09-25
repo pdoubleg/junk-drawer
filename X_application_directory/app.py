@@ -4,66 +4,36 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objs as go
 from analyze import AnalyzeGPT, SQL_Query, ChatGPT_Handler
-import openai
 from pathlib import Path
-from dotenv import load_dotenv
 import os
 import datetime
-
-load_dotenv()
+import sqlite3
 
 def load_setting(setting_name, session_name,default_value=''):  
     """  
     Function to load the setting information from session  
     """  
     if session_name not in st.session_state:  
-        if os.environ.get(setting_name) is not None:
-            st.session_state[session_name] = os.environ.get(setting_name)
-        else:
-            st.session_state[session_name] = default_value  
+        st.session_state[session_name] = default_value  
 
-load_setting("AZURE_OPENAI_CHATGPT_DEPLOYMENT","chatgpt","gpt-3.5-turbo")  
-load_setting("AZURE_OPENAI_GPT4_DEPLOYMENT","gpt4","gpt-4")  
-# load_setting("AZURE_OPENAI_ENDPOINT","endpoint","https://resourcenamehere.openai.azure.com/")  
-# load_setting("AZURE_OPENAI_API_KEY","apikey")  
-load_setting("SQL_ENGINE","sqlengine","sqlite")
-load_setting("SQL_SERVER","sqlserver")
-load_setting("SQL_DATABASE","sqldatabase")
-load_setting("SQL_USER","sqluser")
-load_setting("SQL_PASSWORD","sqlpassword")
 load_setting("SQLITE_DB_PATH","sqlitedbpath","data/northwind.db")
-if 'show_settings' not in st.session_state:  
-    st.session_state['show_settings'] = False  
 
 def saveOpenAI():
-    st.session_state.chatgpt = st.session_state.txtChatGPT
-    st.session_state.gpt4 = st.session_state.txtGPT4
-    # st.session_state.endpoint = st.session_state.txtEndpoint
-    # st.session_state.apikey = st.session_state.txtAPIKey
-    st.session_state.sqlengine = st.session_state.txtSQLEngine
-    st.session_state.sqlserver = st.session_state.txtSQLServer
-    st.session_state.sqldatabase = st.session_state.txtSQLDatabase
-    st.session_state.sqluser = st.session_state.txtSQLUser
-    st.session_state.sqlpassword = st.session_state.txtSQLPassword
-
     # We can close out the settings now
     st.session_state['show_settings'] = False
 def toggleSettings():
     st.session_state['show_settings'] = not st.session_state['show_settings']
 
-# openai.api_type = "azure"
-# openai.api_version = "2023-03-15-preview" 
-# openai.api_key = st.session_state.apikey
-# openai.api_base = st.session_state.endpoint
 max_response_tokens = None
-token_limit= 4096
+token_limit= 8000
 temperature=0
 
 st.set_page_config(page_title="Natural Language Query", page_icon=":memo:", layout="wide")
 
 col1, col2  = st.columns((3,1)) 
 
-with st.sidebar:  
+with st.sidebar:
+    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
     options = ("SQL Query Writing Assistant", "Data Analysis Assistant")
     index = st.radio("Choose the app", range(len(options)), format_func=lambda x: options[x])
     if index == 0:
@@ -89,10 +59,6 @@ with st.sidebar:
                 "For each category, get the list of products sold and the total sales amount",
                 "Find Quarterly Orders by Product. First column is Product Name, then year then four other columns, each for a quarter. The amount is order amount after discount", 
             ],  
-            "GPT-4": [  
-                "Pick top 20 customers generated most revenue in 2016 and for each customer show 3 products that they purchased most",  
-                "Which products have most seasonality in sales quantity in 2016?" ,  
-            ]  
         }  
 
     elif index == 1:
@@ -163,51 +129,15 @@ with st.sidebar:
                 "Predict monthly revenue for next 6 months starting from June-2018. Do not use Prophet. Show the prediction in a chart together with historical data for comparison."
 
             ],  
-            "GPT-4": [  
-                "Predict monthly revenue for next 6 months starting from June-2018. Do not use Prophet. Show the prediction in a chart together with historical data for comparison.",  
-                "What is the impact of discount on sales? What's optimal discount rate?" ,  
-            ]  
         }  
 
-    # st.sidebar.title(options[index])
-    # expandit=(st.session_state.apikey == '' or st.session_state.endpoint == '' or st.session_state.chatgpt == '')
-
     st.button("Settings",on_click=toggleSettings)
-    if st.session_state['show_settings']:  
-        # with st.expander("Settings",expanded=expandit):
-        with st.form("AzureOpenAI"):
-            st.title("Azure OpenAI Settings")
-            st.text_input("ChatGPT deployment name:", value=st.session_state.chatgpt,key="txtChatGPT")  
-            st.text_input("GPT-4 deployment name (if not specified, default to ChatGPT's):", value=st.session_state.gpt4,key="txtGPT4") 
-            # st.text_input("Azure OpenAI Endpoint:", value=st.session_state.endpoint,key="txtEndpoint")  
-            # st.text_input("Azure OpenAI Key:", value=st.session_state.apikey, type="password",key="txtAPIKey")
-
-            st.radio("SQL Engine:",["sqlite","sqlserver"],index=0,key="txtSQLEngine")
-            st.write("SQL Server Settings (Optional)")
-            st.text_input("SQL Server:", value=st.session_state.sqlserver,key="txtSQLServer")  
-            st.text_input("Database:", value=st.session_state.sqldatabase,key="txtSQLDatabase")
-            st.text_input("User:", value=st.session_state.sqluser,key="txtSQLUser")  
-            st.text_input("Password:", type="password",value=st.session_state.sqlpassword,key="txtSQLPassword")
-
-            st.form_submit_button("Submit",on_click=saveOpenAI)
-
-    # sql_list=["sqlite"]
-    # if not (st.session_state.sqlserver == '' or st.session_state.sqldatabase == '' or st.session_state.sqluser == '' or st.session_state.sqlpassword == ''):
-    #     sql_list.append("sqlserver")
-    # sql_engine = st.selectbox('SQL Engine',sql_list)  
 
     chat_list=[]
-    if st.session_state.chatgpt != '':
-        chat_list.append("ChatGPT")
-    if st.session_state.gpt4 != '':
-        chat_list.append("GPT-4")
+    chat_list.append("ChatGPT")
     gpt_engine = st.selectbox('GPT Model', chat_list)  
     if gpt_engine == "ChatGPT":  
-        gpt_engine = st.session_state.chatgpt  
         faq = faq_dict["ChatGPT"]  
-    else:  
-        gpt_engine = st.session_state.gpt4
-        faq = faq_dict["GPT-4"]  
     
     option = st.selectbox('FAQs',faq)  
 
@@ -216,18 +146,15 @@ with st.sidebar:
     # step_break = st.checkbox("Break at every step", value=False)  
     question = st.text_area("Ask me a question", option)
   
-    if st.button("Submit"):  
-        # if st.session_state.apikey == '' or st.session_state.endpoint == '' or st.session_state.chatgpt == '' or st.session_state.sqlengine == '':
-        #     st.error("You need to specify Azure Open AI Deployment Settings!")
-        if st.session_state.sqlengine =="sqlserver" and (st.session_state.sqlserver == '' or st.session_state.sqldatabase == '' or st.session_state.sqluser == '' or st.session_state.sqlpassword == ''):
-            st.error("You need to specify SQL Server Settings!")
-        else:
-            if st.session_state.sqlengine =="sqlserver":
-                sql_query_tool = SQL_Query(driver='ODBC Driver 17 for SQL Server',dbserver=st.session_state.sqlserver, database=st.session_state.sqldatabase, db_user=st.session_state.sqluser ,db_password=st.session_state.sqlpassword)
-            else:
-                sql_query_tool = SQL_Query(db_path=st.session_state.sqlitedbpath)
-            analyzer = AnalyzeGPT(sql_engine=st.session_state.sqlengine,content_extractor= extractor, sql_query_tool=sql_query_tool,  system_message=system_message, few_shot_examples=few_shot_examples,st=st,  
-                                model=gpt_engine,max_response_tokens=max_response_tokens,token_limit=token_limit,  
+    if st.button("Submit"):
+        sql_query_tool = SQL_Query(db_path=st.session_state.sqlitedbpath)
+            
+        if uploaded_file is not None:
+            table_name = 'legal_questions'
+            sql_query_tool.write_csv_to_sql("../src_index/reddit_legal_cluster_test_results.csv", table_name)
+        
+            analyzer = AnalyzeGPT(sql_engine="sqlite",content_extractor= extractor, sql_query_tool=sql_query_tool,  system_message=system_message, few_shot_examples=few_shot_examples,st=st,  
+                                model="gpt-4",max_response_tokens=max_response_tokens,token_limit=token_limit,  
                                 temperature=temperature)  
             if index==0:
                 analyzer.query_run(question,show_code,show_prompt, col1)  
@@ -235,11 +162,5 @@ with st.sidebar:
                 analyzer.run(question,show_code,show_prompt, col1)  
             else:
                 st.error("Not implemented yet!")
-
-
-        # else:
-        #     for key in st.session_state.keys():
-        #         if ("AZURE_OPENAI" not in key )and ("settings" not in key) and ("SQL" not in key) : 
-        #             del st.session_state[key]  
 
  

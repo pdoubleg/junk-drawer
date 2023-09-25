@@ -28,9 +28,9 @@ DATA_PATH = "reddit_legal_cluster_test_results.parquet"
 
 class ResearchSchema(BaseModel):
     query: str = Field(description="the exact text the user wants to query")
-    ton_n: Optional[int] = Field(description="should be a number")
-    model_name: Optional[str] = Field(description="should be an OpenAI model name")
-    context_token_limit: Optional[int] = Field(description="should be a number")
+    # ton_n: Optional[int] = Field(description="should be a number")
+    # model_name: Optional[str] = Field(description="should be an OpenAI model name")
+    # context_token_limit: Optional[int] = Field(description="should be a number")
 
 
 class ResearchPastQuestions(BaseTool):
@@ -46,7 +46,7 @@ class ResearchPastQuestions(BaseTool):
         super().__init__(**data)
     name = "Research Past Questions"
     description = "useful for finding top n most similar text for a specified query. if given a query it should be passed to this tool unedited."
-    return_direct = True
+    return_direct = False
     args_schema: Type[ResearchSchema] = ResearchSchema
     handle_tool_error = True
 
@@ -62,9 +62,9 @@ class ResearchPastQuestions(BaseTool):
     def _run(
         self, 
         user_query: str, 
-        top_n: int = 5, 
-        model_name: str = MODEL_NAME, 
-        context_token_limit: int = TOKEN_LIMIT,
+        # top_n: int = 5, 
+        # model_name: str = MODEL_NAME, 
+        # context_token_limit: int = TOKEN_LIMIT,
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """
@@ -80,7 +80,7 @@ class ResearchPastQuestions(BaseTool):
         # Read in a df
         # df = pd.read_parquet("reddit_legal_cluster_test_results.parquet")
         load_dotenv()
-        llm = get_llm(model=model_name)
+        llm = get_llm(model=MODEL_NAME)
 
         # Create instance of SemanticSearch
         search_engine = SemanticSearch(self.df)
@@ -88,7 +88,7 @@ class ResearchPastQuestions(BaseTool):
         # Query top n
         top_n_res_df = search_engine.query_similar_documents(
             user_query,
-            top_n = top_n,
+            top_n = 5,
             filter_criteria = None,
             use_cosine_similarity = True,
             similarity_threshold = 0.93)
@@ -109,7 +109,7 @@ class ResearchPastQuestions(BaseTool):
 
         # Run create_formatted_input
         try:
-            formatted_input = create_formatted_input(rerank_res_df, user_query, context_token_limit=context_token_limit)
+            formatted_input = create_formatted_input(rerank_res_df, user_query, context_token_limit=TOKEN_LIMIT)
         except Exception as e:
             raise ToolException(f"Error in create_formatted_input: {e}")
             return
@@ -129,7 +129,7 @@ class ResearchPastQuestions(BaseTool):
             i = int(citation) - 1  # convert string to int and adjust for 0-indexing
             title = rerank_res_df.iloc[i]["llm_title"]
             link = f"{rerank_res_df.iloc[i]['full_link']}"
-            venue = rerank_res_df.iloc[i]["State"]
+            venue = rerank_res_df.iloc[i]["state"]
             date = rerank_res_df.iloc[i]["datestamp"]
             number = rerank_res_df.iloc[i]["index"]
             result += f"##### {[i+1]} [{title}]({link}) - {venue}, {date}, Number: {number}\n"
@@ -140,9 +140,9 @@ class ResearchPastQuestions(BaseTool):
     async def _arun(
         self, 
         user_query: str, 
-        top_n: int = 5, 
-        model_name: str = MODEL_NAME, 
-        context_token_limit: int = TOKEN_LIMIT,
+        # top_n: int = 5, 
+        # model_name: str = MODEL_NAME, 
+        # context_token_limit: int = TOKEN_LIMIT,
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> str:
         """Use the tool asynchronously."""

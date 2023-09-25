@@ -146,6 +146,9 @@ def app():
                              agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
                              verbose=True, 
                              memory=memory,
+                             return_intermediate_steps=False,
+                             max_iterations=5,
+                             handle_parsing_errors=True,
                              )
     
     # Add a reset button to the sidebar
@@ -192,6 +195,7 @@ def app():
         with st.chat_message("assistant", avatar="https://raw.githubusercontent.com/pdoubleg/junk-drawer/main/src_index/data/icons/c3po_icon_resized_pil.jpg"):
             resp_container = st.empty()
             st_callback = StreamlitCallbackHandler(st.container(), collapse_completed_thoughts=False)
+            
             response = agent.run(query, callbacks=[st_callback])
 
             resp_container.markdown(response)

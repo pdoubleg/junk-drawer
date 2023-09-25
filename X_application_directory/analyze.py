@@ -40,7 +40,7 @@ def get_table_schema(sql_query_tool, sql_engine='sqlite'):
     df = sql_query_tool.execute_sql_query(sql_query, limit=None)  
     output=[]
     # Initialize variables to store table and column information  
-    current_table = ''  
+    current_table = 'legal_questions'  
     columns = []  
     
     # Loop through the query results and output the table and column information  
@@ -75,12 +75,11 @@ def get_table_schema(sql_query_tool, sql_engine='sqlite'):
     return output
 
 class ChatGPT_Handler: #designed for chatcompletion API
-    def __init__(self, max_response_tokens=None,token_limit=None,model="gpt-3.5-turbo",temperature=None,extract_patterns=None) -> None:
+    def __init__(self, max_response_tokens=None,token_limit=None,model="gpt-4",temperature=None,extract_patterns=None) -> None:
         self.max_response_tokens = max_response_tokens
         self.token_limit= token_limit
         self.model=model
         self.temperature=temperature
-        # self.conversation_history = []
         self.extract_patterns=extract_patterns
     def _call_llm(self,prompt, stop):
         response = openai.ChatCompletion.create(
@@ -128,6 +127,7 @@ class ChatGPT_Handler: #designed for chatcompletion API
                         output[result.group(1)]= result.group(2)
 
             return output
+        
 
 class SQL_Query(ChatGPT_Handler):
     def __init__(self, system_message="",data_sources="",db_path=None,driver=None,dbserver=None, database=None, db_user=None ,db_password=None, **kwargs):
@@ -141,21 +141,19 @@ class SQL_Query(ChatGPT_Handler):
         self.dbserver=dbserver
         self.db_user = db_user
         self.db_password = db_password
-        self.db_path= db_path #This is the built-in demo using SQLite
+        self.db_path= db_path 
         
         self.driver= driver
         
-    def execute_sql_query(self, query, limit=10000):  
         if self.db_path is not None:  
-            engine = create_engine(f'sqlite:///{self.db_path}')  
+            self.engine = create_engine(f'sqlite:///{self.db_path}')  
         else:  
             connecting_string = f"Driver={{ODBC Driver 17 for SQL Server}};Server=tcp:{self.dbserver},1433;Database={self.database};Uid={self.db_user};Pwd={self.db_password}"
             params = parse.quote_plus(connecting_string)
+            self.engine = create_engine("mssql+pyodbc:///?odbc_connect=%s" % params)
 
-            engine = create_engine("mssql+pyodbc:///?odbc_connect=%s" % params)
-
-
-        result = pd.read_sql_query(query, engine)
+    def execute_sql_query(self, query, limit=10000):  
+        result = pd.read_sql_query(query, self.engine)
         result = result.infer_objects()
         for col in result.columns:  
             if 'date' in col.lower():  
@@ -164,8 +162,12 @@ class SQL_Query(ChatGPT_Handler):
         if limit is not None:  
             result = result.head(limit)  # limit to save memory  
   
-        # session.close()  
         return result  
+
+    def write_csv_to_sql(self, csv_file, table_name):
+        df = pd.read_csv(csv_file)
+        df.to_sql(table_name, self.engine, if_exists='replace')
+
 
 
 class AnalyzeGPT(ChatGPT_Handler):
@@ -173,8 +175,6 @@ class AnalyzeGPT(ChatGPT_Handler):
     def __init__(self,sql_engine,content_extractor, sql_query_tool, system_message,few_shot_examples,st,**kwargs) -> None:
         super().__init__(**kwargs)
             
-        
-
         
         table_schema = get_table_schema(sql_query_tool,sql_engine)
         system_message = f"""
@@ -193,11 +193,9 @@ class AnalyzeGPT(ChatGPT_Handler):
             old_user_content= self.conversation_history.pop() #removing old history
             old_user_content=old_user_content['content']+"\n"
         self.conversation_history.append({"role": "user", "content": old_user_content+updated_user_content})
-        # print("prompt input ", self.conversation_history)
         n=0
         try:
             llm_output = self._call_llm(self.conversation_history, stop)
-            # print("llm_output \n", llm_output)
 
         except Exception as e:
             time.sleep(8) #sleep for 8 seconds
@@ -213,7 +211,6 @@ class AnalyzeGPT(ChatGPT_Handler):
             llm_output = "OPENAI_ERROR"     
              
     
-        # print("llm_output: ", llm_output)
         output = self.content_extractor.extract_output(llm_output)
         if len(output)==0 and llm_output != "OPENAI_ERROR": #wrong output format
             llm_output = "WRONG_OUTPUT_FORMAT"
@@ -229,9 +226,6 @@ class AnalyzeGPT(ChatGPT_Handler):
         import pandas as pd
 
         st.write(f"Question: {question}")
-        # if "init" not in self.st.session_state.keys():
-            
-        #     self.st.session_state['init']= True
 
         def execute_sql(query):
             return self.sql_query_tool.execute_sql_query(query)
@@ -241,11 +235,6 @@ class AnalyzeGPT(ChatGPT_Handler):
                 st.plotly_chart(data)
             else:
                 st.write(data)
-            # i=0
-            # for key in self.st.session_state.keys():
-            #     if "show" in key:
-            #         i +=1
-            # self.st.session_state[f'show{i}']=data 
             if type(data) is not Figure:
                 self.st.session_state[f'observation: this was shown to user']=data
         def observe(name, data):
@@ -260,10 +249,6 @@ class AnalyzeGPT(ChatGPT_Handler):
 
         finish = False
         new_input= f"Question: {question}"
-        # if self.st.session_state['init']:
-        #     new_input= f"Question: {question}"
-        # else:
-        #     new_input=self.st.session_state['history'] +f"\nQuestion: {question}"
         while not finish:
 
             llm_output,next_steps = self.get_next_steps(new_input, stop=["Observation:", f"Thought {count+1}"])
@@ -285,15 +270,12 @@ class AnalyzeGPT(ChatGPT_Handler):
                     observations =[]
                     serialized_obs=[]
                     try:
-                        # if "print(" in value:
-                        #     raise Exception("You must not use print() statement, instead use st.write() to write to end user or observe(name, data) to view data yourself. Please regenerate the code")
                         exec(value, locals())
                         for key in self.st.session_state.keys():
                             if "observation:" in key:
                                 observation=self.st.session_state[key]
                                 observations.append((key.split(":")[1],observation))
                                 if type(observation) is pd:
-                                    # serialized_obs.append((key.split(":")[1],observation.to_json(orient='records', date_format='iso')))
                                     serialized_obs.append((key.split(":")[1],observation.to_string()))
 
                                 elif type(observation) is not Figure:
@@ -377,10 +359,3 @@ class AnalyzeGPT(ChatGPT_Handler):
                 st.write("Cannot handle the question, please change the question and try again")
         
 
-
-
-
-
-
-
-    
