@@ -2,8 +2,8 @@ from pathlib import Path
 
 import streamlit as st
 
-st.set_page_config(page_title="LibertyGPT Sandbox", layout='wide')
-st.title('GPT Sandbox:  🦜MRKL')
+st.set_page_config(page_title="LibertyGPT Sandbox", layout="wide")
+st.title("GPT Sandbox:  🦜MRKL")
 
 """
 This Streamlit app showcases a LangChain agent that replicates the "Modular Reasoning, Knowledge and Language system", aka the
@@ -15,16 +15,21 @@ from langchain.agents import AgentType, initialize_agent, Tool
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.callbacks import StreamlitCallbackHandler
 
-from llama_index import ServiceContext, StorageContext, LangchainEmbedding, load_index_from_storage
+from llama_index import (
+    ServiceContext,
+    StorageContext,
+    LangchainEmbedding,
+    load_index_from_storage,
+)
 from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import AgentType, Tool, initialize_agent, load_tools
-    
+
 ho3_directory = "../_policy_index_metadatas"
 doi_directory = "../_index_storage"
-uniform_building_codes = "../_property_index_storage"   
-    
-    
+uniform_building_codes = "../_property_index_storage"
+
+
 def get_llm(temperature=0):
     return ChatOpenAI(temperature=temperature, model="gpt-3.5-turbo")
 
@@ -36,11 +41,9 @@ def get_embed_model():
 @st.cache_resource
 def initialize_index(storage_directory):
     llm = get_llm()
-    embed_model=get_embed_model()
+    embed_model = get_embed_model()
 
-    service_context = ServiceContext.from_defaults(
-        llm=llm,
-        embed_model=embed_model)
+    service_context = ServiceContext.from_defaults(llm=llm, embed_model=embed_model)
 
     index = load_index_from_storage(
         StorageContext.from_defaults(persist_dir=storage_directory),
@@ -57,25 +60,27 @@ bldg_code_index = initialize_index(storage_directory=uniform_building_codes)
 tools = [
     Tool(
         name="ho3_query_engine",
-        func=lambda q: str(ho3_index.as_query_engine(
-            similarity_top_k=5,
-            streaming=False).query(q)),
+        func=lambda q: str(
+            ho3_index.as_query_engine(similarity_top_k=5, streaming=False).query(q)
+        ),
         description="useful for when you want to answer questions about homeowner's insurance coverage.",
         return_direct=False,
     ),
     Tool(
         name="doi_query_engine",
-        func=lambda q: str(doi_index.as_query_engine(
-            similarity_top_k=5,
-            streaming=False).query(q)),
+        func=lambda q: str(
+            doi_index.as_query_engine(similarity_top_k=5, streaming=False).query(q)
+        ),
         description="useful for when you want to answer questions about Department of Insurancce (DOI) regulations such as rules, statutes, or general requirements insurance companies must follow.",
         return_direct=False,
     ),
-        Tool(
+    Tool(
         name="bldg_codes_query_engine",
-        func=lambda q: str(bldg_code_index.as_query_engine(
-            similarity_top_k=5,
-            streaming=False).query(q)),
+        func=lambda q: str(
+            bldg_code_index.as_query_engine(similarity_top_k=5, streaming=False).query(
+                q
+            )
+        ),
         description="useful for when you want to answer questions about building consruction, and renovation.",
         return_direct=False,
     ),
@@ -83,11 +88,11 @@ tools = [
 
 
 mrkl = initialize_agent(
-        tools, 
-        llm=OpenAI(temperature=0, streaming=True), 
-        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, 
-        verbose=True
-    )
+    tools,
+    llm=OpenAI(temperature=0, streaming=True),
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True,
+)
 
 
 expand_new_thoughts = st.sidebar.checkbox(
@@ -126,7 +131,6 @@ if key in st.session_state and shadow_key not in st.session_state:
     st.session_state[shadow_key] = st.session_state[key]
 
 with st.form(key="form"):
-
     mrkl_input = st.text_input("Ask a question", key=shadow_key)
     st.session_state[key] = mrkl_input
     submit_clicked = st.form_submit_button("Submit Question")
@@ -135,7 +139,7 @@ cols2 = st.columns(2, gap="small")
 with cols2[0]:
     question_container = st.empty()
     results_container = st.empty()
-    
+
 with cols2[1]:
     sources_container = st.empty()
 

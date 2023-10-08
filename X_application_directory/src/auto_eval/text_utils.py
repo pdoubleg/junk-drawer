@@ -11,9 +11,9 @@ def clean_pdf_text(text: str) -> str:
 def remove_citations(text: str) -> str:
     """Removes in-text citations from a string."""
     # (Author, Year)
-    text = re.sub(r'\([A-Za-z0-9,.\s]+\s\d{4}\)', '', text)
+    text = re.sub(r"\([A-Za-z0-9,.\s]+\s\d{4}\)", "", text)
     # [1], [2], [3-5], [3, 33, 49, 51]
-    text = re.sub(r'\[[0-9,-]+(,\s[0-9,-]+)*\]', '', text)
+    text = re.sub(r"\[[0-9,-]+(,\s[0-9,-]+)*\]", "", text)
     return text
 
 
@@ -36,7 +36,9 @@ GRADE:
 And explain why the STUDENT ANSWER is correct or incorrect.
 """
 
-GRADE_ANSWER_PROMPT = PromptTemplate(input_variables=["query", "result", "answer"], template=template)
+GRADE_ANSWER_PROMPT = PromptTemplate(
+    input_variables=["query", "result", "answer"], template=template
+)
 
 template = """You are a teacher grading a quiz. 
 You are given a question, the student's answer, and the true answer, and are asked to score the student answer as either CORRECT or INCORRECT.
@@ -58,7 +60,9 @@ GRADE:
 And explain why the STUDENT ANSWER is correct or incorrect, identify potential sources of bias in the QUESTION, and identify potential sources of bias in the TRUE ANSWER.
 """
 
-GRADE_ANSWER_PROMPT_BIAS_CHECK = PromptTemplate(input_variables=["query", "result", "answer"], template=template)
+GRADE_ANSWER_PROMPT_BIAS_CHECK = PromptTemplate(
+    input_variables=["query", "result", "answer"], template=template
+)
 
 template = """You are assessing a submitted student answer to a question relative to the true answer based on the provided criteria: 
     
@@ -78,7 +82,9 @@ template = """You are assessing a submitted student answer to a question relativ
     Reasoning:
 """
 
-GRADE_ANSWER_PROMPT_OPENAI = PromptTemplate(input_variables=["query", "result", "answer"], template=template)
+GRADE_ANSWER_PROMPT_OPENAI = PromptTemplate(
+    input_variables=["query", "result", "answer"], template=template
+)
 
 template = """You are a teacher grading a quiz. 
 You are given a question, the student's answer, and the true answer, and are asked to score the student answer as either CORRECT or INCORRECT.
@@ -96,7 +102,9 @@ STUDENT ANSWER: {result}
 TRUE ANSWER: {answer}
 GRADE:"""
 
-GRADE_ANSWER_PROMPT_FAST = PromptTemplate(input_variables=["query", "result", "answer"], template=template)
+GRADE_ANSWER_PROMPT_FAST = PromptTemplate(
+    input_variables=["query", "result", "answer"], template=template
+)
 
 template = """ 
     Given the question: \n
@@ -107,7 +115,9 @@ template = """
     "Context is relevant: True or False." \n 
     And explain why it supports or does not support the correct answer: {answer}"""
 
-GRADE_DOCS_PROMPT = PromptTemplate(input_variables=["query", "result", "answer"], template=template)
+GRADE_DOCS_PROMPT = PromptTemplate(
+    input_variables=["query", "result", "answer"], template=template
+)
 
 template = """ 
     Given the question: \n
@@ -117,4 +127,6 @@ template = """
     Answer in the following format: \n
     "Context is relevant: True or False." \n """
 
-GRADE_DOCS_PROMPT_FAST = PromptTemplate(input_variables=["query", "result", "answer"], template=template)
+GRADE_DOCS_PROMPT_FAST = PromptTemplate(
+    input_variables=["query", "result", "answer"], template=template
+)

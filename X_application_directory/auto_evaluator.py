@@ -24,21 +24,35 @@ from langchain.evaluation.qa import QAEvalChain
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
 from gpt_index import LLMPredictor, ServiceContext, GPTFaissIndex
-from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter
-from text_utils import GRADE_DOCS_PROMPT, GRADE_ANSWER_PROMPT, GRADE_DOCS_PROMPT_FAST, GRADE_ANSWER_PROMPT_FAST, GRADE_ANSWER_PROMPT_BIAS_CHECK, GRADE_ANSWER_PROMPT_OPENAI
+from langchain.text_splitter import (
+    RecursiveCharacterTextSplitter,
+    CharacterTextSplitter,
+)
+from text_utils import (
+    GRADE_DOCS_PROMPT,
+    GRADE_ANSWER_PROMPT,
+    GRADE_DOCS_PROMPT_FAST,
+    GRADE_ANSWER_PROMPT_FAST,
+    GRADE_ANSWER_PROMPT_BIAS_CHECK,
+    GRADE_ANSWER_PROMPT_OPENAI,
+)
 
 # Keep dataframe in memory to accumulate experimental results
 if "existing_df" not in st.session_state:
-    summary = pd.DataFrame(columns=['chunk_chars',
-                                    'overlap',
-                                    'split',
-                                    'model',
-                                    'retriever',
-                                    'embedding',
-                                    'num_neighbors',
-                                    'Latency',
-                                    'Retrieval score',
-                                    'Answer score'])
+    summary = pd.DataFrame(
+        columns=[
+            "chunk_chars",
+            "overlap",
+            "split",
+            "model",
+            "retriever",
+            "embedding",
+            "num_neighbors",
+            "Latency",
+            "Retrieval score",
+            "Answer score",
+        ]
+    )
     st.session_state.existing_df = summary
 else:
     summary = st.session_state.existing_df
@@ -68,7 +82,7 @@ def load_docs(files: List) -> str:
             file_content = stringio.read()
             all_text += file_content
         else:
-            st.warning('Please provide txt or pdf.', icon="⚠️")
+            st.warning("Please provide txt or pdf.", icon="⚠️")
     return all_text
 
 
@@ -84,7 +98,7 @@ def generate_eval(text: str, num_questions: int, chunk: int):
     st.info("`Generating eval set ...`")
     n = len(text)
     starting_indices = [random.randint(0, n - chunk) for _ in range(num_questions)]
-    sub_sequences = [text[i:i + chunk] for i in starting_indices]
+    sub_sequences = [text[i : i + chunk] for i in starting_indices]
     chain = QAGenerationChain.from_llm(ChatOpenAI(temperature=0))
     eval_set = []
     for i, b in enumerate(sub_sequences):
@@ -92,7 +106,7 @@ def generate_eval(text: str, num_questions: int, chunk: int):
             qa = chain.run(b)
             eval_set.append(qa)
         except:
-            st.warning('Error generating question %s.' % str(i + 1), icon="⚠️")
+            st.warning("Error generating question %s." % str(i + 1), icon="⚠️")
     eval_set_full = list(itertools.chain.from_iterable(eval_set))
     return eval_set_full
 
@@ -109,16 +123,21 @@ def split_texts(text, chunk_size: int, overlap, split_method: str):
     """
     st.info("`Splitting doc ...`")
     if split_method == "RecursiveTextSplitter":
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,
-                                                       chunk_overlap=overlap)
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=overlap
+        )
     elif split_method == "CharacterTextSplitter":
-        text_splitter = CharacterTextSplitter(separator=" ",
-                                              chunk_size=chunk_size,
-                                              chunk_overlap=overlap)
+        text_splitter = CharacterTextSplitter(
+            separator=" ", chunk_size=chunk_size, chunk_overlap=overlap
+        )
     else:
-        st.warning("`Split method not recognized. Using RecursiveCharacterTextSplitter`", icon="⚠️")
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,
-                                                       chunk_overlap=overlap)
+        st.warning(
+            "`Split method not recognized. Using RecursiveCharacterTextSplitter`",
+            icon="⚠️",
+        )
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=overlap
+        )
 
     split_text = text_splitter.split_text(text)
     return split_text
@@ -167,8 +186,10 @@ def make_retriever(splits, retriever_type, embedding_type, num_neighbors, _llm):
         try:
             vector_store = FAISS.from_texts(splits, embedding)
         except ValueError:
-            st.warning("`Error using OpenAI embeddings (disallowed TikToken token in the text). Using HuggingFace.`",
-                       icon="⚠️")
+            st.warning(
+                "`Error using OpenAI embeddings (disallowed TikToken token in the text). Using HuggingFace.`",
+                icon="⚠️",
+            )
             vector_store = FAISS.from_texts(splits, HuggingFaceEmbeddings())
         retriever_obj = vector_store.as_retriever(k=num_neighbors)
     elif retriever_type == "SVM":
@@ -178,10 +199,14 @@ def make_retriever(splits, retriever_type, embedding_type, num_neighbors, _llm):
     elif retriever_type == "Llama-Index":
         documents = [Document(t, LangchainEmbedding(embedding)) for t in splits]
         llm_predictor = LLMPredictor(llm)
-        context = ServiceContext.from_defaults(chunk_size_limit=512, llm_predictor=llm_predictor)
+        context = ServiceContext.from_defaults(
+            chunk_size_limit=512, llm_predictor=llm_predictor
+        )
         d = 1536
         faiss_index = faiss.IndexFlatL2(d)
-        retriever_obj = GPTFaissIndex.from_documents(documents, faiss_index=faiss_index, service_context=context)
+        retriever_obj = GPTFaissIndex.from_documents(
+            documents, faiss_index=faiss_index, service_context=context
+        )
     else:
         st.warning("`Retriever type not recognized. Using SVM`", icon="⚠️")
         retriever_obj = SVMRetriever.from_texts(splits, embedding)
@@ -200,14 +225,15 @@ def make_chain(llm, retriever, retriever_type: str) -> RetrievalQA:
     if retriever_type == "Llama-Index":
         qa = retriever
     else:
-        qa = RetrievalQA.from_chain_type(llm,
-                                         chain_type="stuff",
-                                         retriever=retriever,
-                                         input_key="question")
+        qa = RetrievalQA.from_chain_type(
+            llm, chain_type="stuff", retriever=retriever, input_key="question"
+        )
     return qa
 
 
-def grade_model_answer(predicted_dataset: List, predictions: List, grade_answer_prompt: str) -> List:
+def grade_model_answer(
+    predicted_dataset: List, predictions: List, grade_answer_prompt: str
+) -> List:
     """
     Grades the distilled answer based on ground truth and model predictions.
     @param predicted_dataset: A list of dictionaries containing ground truth questions and answers.
@@ -229,16 +255,12 @@ def grade_model_answer(predicted_dataset: List, predictions: List, grade_answer_
 
     # Create an evaluation chain
     eval_chain = QAEvalChain.from_llm(
-        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0),
-        prompt=prompt
+        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0), prompt=prompt
     )
 
     # Evaluate the predictions and ground truth using the evaluation chain
     graded_outputs = eval_chain.evaluate(
-        predicted_dataset,
-        predictions,
-        question_key="question",
-        prediction_key="result"
+        predicted_dataset, predictions, question_key="question", prediction_key="result"
     )
 
     return graded_outputs
@@ -256,25 +278,25 @@ def grade_model_retrieval(gt_dataset: List, predictions: List, grade_docs_prompt
     st.info("`Grading relevance of retrieved docs ...`")
 
     # Set the grading prompt based on the grade_docs_prompt parameter
-    prompt = GRADE_DOCS_PROMPT_FAST if grade_docs_prompt == "Fast" else GRADE_DOCS_PROMPT
+    prompt = (
+        GRADE_DOCS_PROMPT_FAST if grade_docs_prompt == "Fast" else GRADE_DOCS_PROMPT
+    )
 
     # Create an evaluation chain
     eval_chain = QAEvalChain.from_llm(
-        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0),
-        prompt=prompt
+        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0), prompt=prompt
     )
 
     # Evaluate the predictions and ground truth using the evaluation chain
     graded_outputs = eval_chain.evaluate(
-        gt_dataset,
-        predictions,
-        question_key="question",
-        prediction_key="result"
+        gt_dataset, predictions, question_key="question", prediction_key="result"
     )
     return graded_outputs
 
 
-def run_evaluation(chain, retriever, eval_set, grade_prompt, retriever_type, num_neighbors):
+def run_evaluation(
+    chain, retriever, eval_set, grade_prompt, retriever_type, num_neighbors
+):
     """
     Runs evaluation on a model's performance on a given evaluation dataset.
     @param chain: Model chain used for answering questions
@@ -296,15 +318,24 @@ def run_evaluation(chain, retriever, eval_set, grade_prompt, retriever_type, num
     latencies_list = []
 
     for data in eval_set:
-
         # Get answer and log latency
         start_time = time.time()
         if retriever_type != "Llama-Index":
             predictions_list.append(chain(data))
         elif retriever_type == "Llama-Index":
-            answer = chain.query(data["question"], similarity_top_k=num_neighbors, response_mode="tree_summarize",
-                                 use_async=True)
-            predictions_list.append({"question": data["question"], "answer": data["answer"], "result": answer.response})
+            answer = chain.query(
+                data["question"],
+                similarity_top_k=num_neighbors,
+                response_mode="tree_summarize",
+                use_async=True,
+            )
+            predictions_list.append(
+                {
+                    "question": data["question"],
+                    "answer": data["answer"],
+                    "result": answer.response,
+                }
+            )
         gt_dataset.append(data)
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -321,7 +352,11 @@ def run_evaluation(chain, retriever, eval_set, grade_prompt, retriever_type, num
             for i, doc in enumerate(docs):
                 retrieved_doc_text += "Doc %s: " % str(i + 1) + doc.page_content + " "
 
-        retrieved = {"question": data["question"], "answer": data["answer"], "result": retrieved_doc_text}
+        retrieved = {
+            "question": data["question"],
+            "answer": data["answer"],
+            "result": retrieved_doc_text,
+        }
         retrieved_docs.append(retrieved)
 
     # Grade
@@ -334,47 +369,43 @@ def run_evaluation(chain, retriever, eval_set, grade_prompt, retriever_type, num
 st.sidebar.image("img/diagnostic.jpg")
 
 with st.sidebar.form("user_input"):
-    num_eval_questions = st.select_slider("`Number of eval questions`",
-                                          options=[1, 5, 10, 15, 20], value=5)
+    num_eval_questions = st.select_slider(
+        "`Number of eval questions`", options=[1, 5, 10, 15, 20], value=5
+    )
 
-    chunk_chars = st.select_slider("`Choose chunk size for splitting`",
-                                   options=[500, 750, 1000, 1500, 2000], value=1000)
+    chunk_chars = st.select_slider(
+        "`Choose chunk size for splitting`",
+        options=[500, 750, 1000, 1500, 2000],
+        value=1000,
+    )
 
-    overlap = st.select_slider("`Choose overlap for splitting`",
-                               options=[0, 50, 100, 150, 200], value=100)
+    overlap = st.select_slider(
+        "`Choose overlap for splitting`", options=[0, 50, 100, 150, 200], value=100
+    )
 
-    split_method = st.radio("`Split method`",
-                            ("RecursiveTextSplitter",
-                             "CharacterTextSplitter"),
-                            index=0)
+    split_method = st.radio(
+        "`Split method`", ("RecursiveTextSplitter", "CharacterTextSplitter"), index=0
+    )
 
-    model = st.radio("`Choose model`",
-                     ("gpt-3.5-turbo",
-                      "gpt-4",
-                      "anthropic"),
-                     index=0)
+    model = st.radio("`Choose model`", ("gpt-3.5-turbo", "gpt-4", "anthropic"), index=0)
 
-    retriever_type = st.radio("`Choose retriever`",
-                              ("TF-IDF",
-                               "SVM",
-                               "Llama-Index",
-                               "similarity-search"),
-                              index=3)
+    retriever_type = st.radio(
+        "`Choose retriever`",
+        ("TF-IDF", "SVM", "Llama-Index", "similarity-search"),
+        index=3,
+    )
 
-    num_neighbors = st.select_slider("`Choose # chunks to retrieve`",
-                                     options=[3, 4, 5, 6, 7, 8])
+    num_neighbors = st.select_slider(
+        "`Choose # chunks to retrieve`", options=[3, 4, 5, 6, 7, 8]
+    )
 
-    embeddings = st.radio("`Choose embeddings`",
-                          ("HuggingFace",
-                           "OpenAI"),
-                          index=1)
+    embeddings = st.radio("`Choose embeddings`", ("HuggingFace", "OpenAI"), index=1)
 
-    grade_prompt = st.radio("`Grading style prompt`",
-                            ("Fast",
-                             "Descriptive",
-                             "Descriptive w/ bias check",
-                             "OpenAI grading prompt"),
-                            index=0)
+    grade_prompt = st.radio(
+        "`Grading style prompt`",
+        ("Fast", "Descriptive", "Descriptive w/ bias check", "OpenAI grading prompt"),
+        index=0,
+    )
 
     submitted = st.form_submit_button("Submit evaluation")
 
@@ -383,21 +414,25 @@ st.header("`Auto-evaluator`")
 st.info(
     "`I am an evaluation tool for question-answering. Given documents, I will auto-generate a question-answer eval "
     "set and evaluate using the selected chain settings. Experiments with different configurations are logged. "
-    "Optionally, provide your own eval set (as a JSON, see docs/karpathy-pod-eval.json for an example).`")
+    "Optionally, provide your own eval set (as a JSON, see docs/karpathy-pod-eval.json for an example).`"
+)
 
-with st.form(key='file_inputs'):
-    uploaded_file = st.file_uploader("`Please upload a file to evaluate (.txt or .pdf):` ",
-                                     type=['pdf', 'txt'],
-                                     accept_multiple_files=True)
+with st.form(key="file_inputs"):
+    uploaded_file = st.file_uploader(
+        "`Please upload a file to evaluate (.txt or .pdf):` ",
+        type=["pdf", "txt"],
+        accept_multiple_files=True,
+    )
 
-    uploaded_eval_set = st.file_uploader("`[Optional] Please upload eval set (.json):` ",
-                                         type=['json'],
-                                         accept_multiple_files=False)
+    uploaded_eval_set = st.file_uploader(
+        "`[Optional] Please upload eval set (.json):` ",
+        type=["json"],
+        accept_multiple_files=False,
+    )
 
     submitted = st.form_submit_button("Submit files")
 
 if uploaded_file:
-
     # Load docs
     text = load_docs(uploaded_file)
     # Generate num_eval_questions questions, each from context of 3k chars randomly selected
@@ -414,19 +449,24 @@ if uploaded_file:
     # Make chain
     qa_chain = make_chain(llm, retriever, retriever_type)
     # Grade model
-    graded_answers, graded_retrieval, latency, predictions = run_evaluation(qa_chain, retriever, eval_set, grade_prompt,
-                                                                      retriever_type, num_neighbors)
+    graded_answers, graded_retrieval, latency, predictions = run_evaluation(
+        qa_chain, retriever, eval_set, grade_prompt, retriever_type, num_neighbors
+    )
 
     # Assemble outputs
     d = pd.DataFrame(predictions)
-    d['answer score'] = [g['text'] for g in graded_answers]
-    d['docs score'] = [g['text'] for g in graded_retrieval]
-    d['latency'] = latency
+    d["answer score"] = [g["text"] for g in graded_answers]
+    d["docs score"] = [g["text"] for g in graded_retrieval]
+    d["latency"] = latency
 
     # Summary statistics
-    mean_latency = d['latency'].mean()
-    correct_answer_count = len([text for text in d['answer score'] if "INCORRECT" not in text])
-    correct_docs_count = len([text for text in d['docs score'] if "Context is relevant: True" in text])
+    mean_latency = d["latency"].mean()
+    correct_answer_count = len(
+        [text for text in d["answer score"] if "INCORRECT" not in text]
+    )
+    correct_docs_count = len(
+        [text for text in d["docs score"] if "Context is relevant: True" in text]
+    )
     percentage_answer = (correct_answer_count / len(graded_answers)) * 100
     percentage_docs = (correct_docs_count / len(graded_retrieval)) * 100
 
@@ -434,7 +474,8 @@ if uploaded_file:
     st.info(
         "`I will grade the chain based on: 1/ the relevance of the retrived documents relative to the question and 2/ "
         "the summarized answer relative to the ground truth answer. You can see (and change) to prompts used for "
-        "grading in text_utils`")
+        "grading in text_utils`"
+    )
     st.dataframe(data=d, use_container_width=True)
 
     # Accumulate results
@@ -443,30 +484,51 @@ if uploaded_file:
         "`Retrieval and answer scores are percentage of retrived documents deemed relevant by the LLM grader ("
         "relative to the question) and percentage of summarized answers deemed relevant (relative to ground truth "
         "answer), respectively. The size of point correponds to the latency (in seconds) of retrieval + answer "
-        "summarization (larger circle = slower).`")
-    new_row = pd.DataFrame({'chunk_chars': [chunk_chars],
-                            'overlap': [overlap],
-                            'split': [split_method],
-                            'model': [model],
-                            'retriever': [retriever_type],
-                            'embedding': [embeddings],
-                            'num_neighbors': [num_neighbors],
-                            'Latency': [mean_latency],
-                            'Retrieval score': [percentage_docs],
-                            'Answer score': [percentage_answer]})
+        "summarization (larger circle = slower).`"
+    )
+    new_row = pd.DataFrame(
+        {
+            "chunk_chars": [chunk_chars],
+            "overlap": [overlap],
+            "split": [split_method],
+            "model": [model],
+            "retriever": [retriever_type],
+            "embedding": [embeddings],
+            "num_neighbors": [num_neighbors],
+            "Latency": [mean_latency],
+            "Retrieval score": [percentage_docs],
+            "Answer score": [percentage_answer],
+        }
+    )
     summary = pd.concat([summary, new_row], ignore_index=True)
     st.dataframe(data=summary, use_container_width=True)
     st.session_state.existing_df = summary
 
     # Dataframe for visualization
     show = summary.reset_index().copy()
-    show.columns = ['expt number', 'chunk_chars', 'overlap',
-                    'split', 'model', 'retriever', 'embedding', 'num_neighbors', 'Latency', 'Retrieval score',
-                    'Answer score']
-    show['expt number'] = show['expt number'].apply(lambda x: "Expt #: " + str(x + 1))
-    c = alt.Chart(show).mark_circle().encode(x='Retrieval score',
-                                             y='Answer score',
-                                             size=alt.Size('Latency'),
-                                             color='expt number',
-                                             tooltip=['expt number', 'Retrieval score', 'Latency', 'Answer score'])
+    show.columns = [
+        "expt number",
+        "chunk_chars",
+        "overlap",
+        "split",
+        "model",
+        "retriever",
+        "embedding",
+        "num_neighbors",
+        "Latency",
+        "Retrieval score",
+        "Answer score",
+    ]
+    show["expt number"] = show["expt number"].apply(lambda x: "Expt #: " + str(x + 1))
+    c = (
+        alt.Chart(show)
+        .mark_circle()
+        .encode(
+            x="Retrieval score",
+            y="Answer score",
+            size=alt.Size("Latency"),
+            color="expt number",
+            tooltip=["expt number", "Retrieval score", "Latency", "Answer score"],
+        )
+    )
     st.altair_chart(c, use_container_width=True, theme="streamlit")

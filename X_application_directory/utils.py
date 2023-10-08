@@ -10,7 +10,7 @@ import tqdm
 from dotenv import load_dotenv
 
 load_dotenv()
-api_key = os.getenv('OPENAI_API_KEY')
+api_key = os.getenv("OPENAI_API_KEY")
 from collections import defaultdict
 
 from langchain.chat_models import ChatOpenAI
@@ -69,8 +69,10 @@ def get_llm(temperature):
     os.environ["OPENAI_API_KEY"] = api_key
     return ChatOpenAI(temperature=temperature, model_name="gpt-3.5-turbo-0613")
 
+
 def get_llama_embeddings_model():
     return LangchainEmbedding(OpenAIEmbeddings())
+
 
 def get_lc_embeddings_model():
     return OpenAIEmbeddings()

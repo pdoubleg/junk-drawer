@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 import tempfile
 import streamlit as st
@@ -37,15 +38,15 @@ def configure_qa_chain(uploaded_files):
     vectordb = DocArrayInMemorySearch.from_documents(splits, embeddings)
 
     # Define retriever
-    retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 2, "fetch_k": 4})
+    retriever = vectordb.as_retriever(
+        search_type="mmr", search_kwargs={"k": 2, "fetch_k": 4}
+    )
 
     # Setup memory for contextual conversation
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
     # Setup LLM and QA chain
-    llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo", temperature=0, streaming=False
-    )
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=False)
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm, retriever=retriever, memory=memory, verbose=True
     )
@@ -53,7 +54,9 @@ def configure_qa_chain(uploaded_files):
 
 
 class StreamHandler(BaseCallbackHandler):
-    def __init__(self, container: st.delta_generator.DeltaGenerator, initial_text: str = ""):
+    def __init__(
+        self, container: st.delta_generator.DeltaGenerator, initial_text: str = ""
+    ):
         self.container = container
         self.text = initial_text
 
@@ -77,7 +80,6 @@ class PrintRetrievalHandler(BaseCallbackHandler):
             self.container.markdown(doc.page_content)
 
 
-
 uploaded_files = st.sidebar.file_uploader(
     label="Upload PDF files", type=["pdf"], accept_multiple_files=True
 )
@@ -88,7 +90,9 @@ if not uploaded_files:
 qa_chain = configure_qa_chain(uploaded_files)
 
 if "messages" not in st.session_state or st.sidebar.button("Clear message history"):
-    st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "How can I help you?"}
+    ]
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
@@ -102,5 +106,7 @@ if user_query:
     with st.chat_message("assistant"):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty())
-        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+        response = qa_chain.run(
+            user_query, callbacks=[retrieval_handler, stream_handler]
+        )
         st.session_state.messages.append({"role": "assistant", "content": response})

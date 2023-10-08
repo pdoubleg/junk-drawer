@@ -1,57 +1,61 @@
-import streamlit as st 
+import streamlit as st
 import urllib
 import base64
 import os
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, ListIndex 
+from llama_index import VectorStoreIndex, SimpleDirectoryReader, ListIndex
 from dotenv import load_dotenv
 
 load_dotenv()
 
-#function to save a file
+
+# function to save a file
 def save_uploadedfile(uploadedfile="../data/HO3_sample.pdf"):
-     with open(uploadedfile,"wb") as f:
-         f.write(uploadedfile.getbuffer())
-     return st.success("Saved File:{} to directory".format(uploadedfile.name))
+    with open(uploadedfile, "wb") as f:
+        f.write(uploadedfile.getbuffer())
+    return st.success("Saved File:{} to directory".format(uploadedfile.name))
 
 
 @st.cache_data
-#function to display the PDF of a given file 
+# function to display the PDF of a given file
 def displayPDF(file):
     # Opening file from file path
     with open(file, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        base64_pdf = base64.b64encode(f.read()).decode("utf-8")
 
     # Embedding PDF in HTML
-    pdf_display = F'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
 
     # Displaying File
     st.markdown(pdf_display, unsafe_allow_html=True)
-    
-#semantic search
+
+
+# semantic search
 def semantic_search(query):
-    documents = SimpleDirectoryReader('.../data/HO3_sample.pdf').load_data()
+    documents = SimpleDirectoryReader(".../data/HO3_sample.pdf").load_data()
     index = VectorStoreIndex.from_documents(documents)
     query_index = index.as_query_engine()
     response = query_index.query(query)
     return response
 
-#summarization 
+
+# summarization
 def summarize(file):
-    documents = SimpleDirectoryReader('.../data/HO3_sample.pdf').load_data()
+    documents = SimpleDirectoryReader(".../data/HO3_sample.pdf").load_data()
     index = ListIndex.from_documents(documents)
     query_index = index.as_query_engine(response_mode="tree_summarize")
     response = query_index.query("Summarize the document")
     return response
 
-#streamlit application
-st.set_page_config(layout='wide')
 
-st.title('Semantic Search Application')
+# streamlit application
+st.set_page_config(layout="wide")
 
-uploaded_pdf = st.file_uploader("Upload your PDF", type=['pdf'])
+st.title("Semantic Search Application")
+
+uploaded_pdf = st.file_uploader("Upload your PDF", type=["pdf"])
 
 if uploaded_pdf is not None:
-    col1, col2, col3 = st.columns([2,1,1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         # input_file = save_uploadedfile(uploaded_pdf)
         pdf_file = "../data/HO3_sample.pdf"
@@ -60,11 +64,10 @@ if uploaded_pdf is not None:
         st.success("Search Area")
         query_search = st.text_area("Search your query")
         if st.checkbox("search"):
-            st.info("Your query: "+query_search)
+            st.info("Your query: " + query_search)
             result = semantic_search(query_search)
             st.write(result)
     with col3:
         st.success("Automated Summarization")
         summary_result = summarize(pdf_file)
-        st.write(summary_result)            
-            
+        st.write(summary_result)

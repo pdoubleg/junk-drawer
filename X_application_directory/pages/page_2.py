@@ -121,7 +121,7 @@ def initialize_index(storage_directory):
     service_context = ServiceContext.from_defaults(
         llm=llm,
         embed_model=embed_model,
-        )
+    )
 
     index = load_index_from_storage(
         StorageContext.from_defaults(persist_dir=storage_directory),
@@ -155,7 +155,6 @@ def generate_eval(text, N, chunk):
     return eval_set_full
 
 
-
 def ui_index():
     index_choice = ["Simple Policy Retriever", "Simple DOI Code Retriever"]
     st.selectbox("Choose a Retriever Model", index_choice, key="index")
@@ -173,12 +172,10 @@ def display_output():
         components.html(wrap_text_in_html(source_output), height=250, scrolling=True)
 
 
-
 def output_source(s: str):
     s = s.replace("$", r"\$")
     new_source = f"{s}\n"
     ss["source"] = f"{new_source}"
-
 
 
 def output_add(q: str, a: str):
@@ -186,7 +183,6 @@ def output_add(q: str, a: str):
     a = a.replace("$", r"\$")
     new_output = f"#### {q}\n{a}\n"
     ss["output"] = f"{new_output}"
-
 
 
 def b_index():
@@ -208,7 +204,11 @@ def ask():
         response = index.as_query_engine().query(question)
         q = question.strip()
         a = str(response)
-        s = str(response.source_nodes[0].node.get_metadata_str())+"\n\n"+'\n\n'.join([str(node.node.get_text()) for node in response.source_nodes])
+        s = (
+            str(response.source_nodes[0].node.get_metadata_str())
+            + "\n\n"
+            + "\n\n".join([str(node.node.get_text()) for node in response.source_nodes])
+        )
         ss["answer"] = a
         output_add(q, a)
         output_source(s)
