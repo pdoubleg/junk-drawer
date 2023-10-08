@@ -139,56 +139,16 @@ def get_llm_fact_pattern_summary(df: pd.DataFrame, text_col_name: str) -> pd.Dat
 
 
 
-# def rerank(query_embeddings_model,
-#            doc_embeddings_model,
-#            df: pd.DataFrame, 
-#            query: str, 
-#            text_col_name: str = "summary",
-#     ) -> pd.DataFrame:
-#     """
-#     This function takes in the results of a top n search and returns re-ranked df
-#     Performs the following steps:
-#       1. Embed the query (should already be pre-processed)
-#       2. Embed each top n result (designed to take in the df output from `get_llm_fact_pattern_summary`
-#       3. Calculate cosine similarity for query and doc embeddings
-#       4. Sory by similarity
-    
-#     Example: rerank_res_df = rerank(top_n_res_df, query, 'summary')
-    
-#     Args:
-#         df (pd.DataFrame): Results from `get_llm_fact_pattern_summary`.
-#         text_col_name (str): The column of text to embed. Defaults to "summary". 
-#     Returns:
-#         pd.DataFrame: Input df sorted based on Instructor embeddings re-ranking.
-#     """
-#     query_df = pd.DataFrame({"query": [query]})
-#     query_fact_pattern_df = get_llm_fact_pattern_summary(df=query_df, text_col_name="query")
-#     query_proc = query_fact_pattern_df["summary"].iloc[0]
-    
-#     query_embedding = query_embeddings_model.embed_query(query_proc)
-#     query_embedding = np.array(query_embedding)
-#     query_embedding = np.expand_dims(query_embedding, axis=0)
-#     doc_embeddings = doc_embeddings_model.embed_documents(df[text_col_name].tolist())
-#     df["instruct_embeddings"] = list(doc_embeddings)
-#     df["similarity"] = cosine_similarity(query_embedding, doc_embeddings).flatten()
-#     # sort the dataframe by similarity
-#     df = df.sort_values(by="similarity", ascending=False)
-#     return df
-
-
-
 def rerank_with_cross_encoder(df: pd.DataFrame,
                               query: str, 
                               text_col_name: str = "summary",
-                              model_name: str = 'cross-encoder/ms-marco-MiniLM-L-2-v2',
+                              model_name: str = 'BAAI/bge-reranker-large',
     ) -> pd.DataFrame:
     """
     A function to rerank search results using pre-trained cross-encoder
     
     On models:
     Base models are listed below. More info here: https://www.sbert.net/docs/pretrained-models/ce-msmarco.html
-    ms-marco-MiniLM-L-6-v2: performance
-    ms-marco-MiniLM-L-2-v2: speed
     
     Example: rerank_res_df = rerank_with_cross_encoder(top_n_res_df, query, 'summary')
     
@@ -260,7 +220,8 @@ def create_context(df: pd.DataFrame, query: str, context_token_limit: int = 3000
 
 
 def create_formatted_input(df: pd.DataFrame, query: str, context_token_limit: int,
-    instructions: str ="""Instructions: Using the provided search results, write a detailed comparative analysis for a new query. ALWAYS cite results using [[number](URL)] notation after the reference. \n\nNew Query:""",
+    instructions: str ="""Instructions: Using the provided search results, and starting with the most relevant, write a detailed comparative analysis for a new query. ALWAYS cite results using [[number](URL)] notation after the reference. \
+        End with a markdown table explaining ALL of the search results titled 'Top N Most Similar Cases' that includes 1) Citation Number, 2) Similarity Score, and 3) Legal Questions, where similarity score is a 1 to 10 score of how similar the text is to the new query.\n\nNew Query:""",
 ) -> str:
     """
     Creates formatted prompt combining top n search results (context), the target query, and final instructions for the LLM.
