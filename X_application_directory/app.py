@@ -14,6 +14,10 @@ import sqlite3
 load_dotenv(find_dotenv())
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+def reset_streamlit_session_state(st):
+    for key in st.session_state.keys():
+        st.session_state[key] = None
+
 
 def load_setting(setting_name, session_name, default_value=""):
     """
@@ -22,7 +26,7 @@ def load_setting(setting_name, session_name, default_value=""):
     if session_name not in st.session_state:
         st.session_state[session_name] = default_value
 
-
+reset_streamlit_session_state(st)
 load_setting("SQLITE_DB_PATH", "sqlitedbpath", "data/northwind.db")
 
 
@@ -36,7 +40,7 @@ def toggleSettings():
 
 
 max_response_tokens = None
-token_limit = 8000
+token_limit = 7000
 temperature = 0
 
 st.set_page_config(

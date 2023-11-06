@@ -87,7 +87,7 @@ def get_table_schema(sql_query_tool):
 
     # Get all table names in the SQLite database
     tables = sql_query_tool.execute_sql_query(
-        "SELECT name FROM sqlite_master WHERE type='table'", limit=100
+        "SELECT name FROM sqlite_master WHERE type='table'", limit=15
     )
 
     output = []
@@ -95,7 +95,7 @@ def get_table_schema(sql_query_tool):
     # Loop through each table and get its schema
     for table in tables["name"]:
         df = sql_query_tool.execute_sql_query(
-            sql_query.format(table_name=table), limit=100
+            sql_query.format(table_name=table), limit=15
         )
 
         # Initialize variables to store table and column information
@@ -219,7 +219,7 @@ class SQL_Query(ChatGPT_Handler):
             params = parse.quote_plus(connecting_string)
             self.engine = create_engine("mssql+pyodbc:///?odbc_connect=%s" % params)
 
-    def execute_sql_query(self, query, limit=1000):
+    def execute_sql_query(self, query, limit=100):
         result = pd.read_sql_query(query, self.engine)
         result = result.infer_objects()
         for col in result.columns:
@@ -322,7 +322,7 @@ class AnalyzeGPT(ChatGPT_Handler):
                 pass
             self.st.session_state[f"observation:{name}"] = data
 
-        max_steps = 15
+        max_steps = 5
         count = 1
 
         finish = False
