@@ -4,6 +4,7 @@ import time
 from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
+import pickle
 from pandas.api.types import (
     is_categorical_dtype,
     is_datetime64_any_dtype,
@@ -71,6 +72,30 @@ def join_embeddings(text_df, embeddings_df):
         raise ValueError(f"'{EMBEDDING_COL_NAME}' column not found in the joined dataframe.")
     
     
+def save_session_state(directory: str, file_name: str):
+    # Create the directory if it doesn't exist
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Save the dictionary if it exists in the session state
+    if 'applied_filters' in st.session_state:
+        with open(f'{directory}/{file_name}_filters.pickle', 'wb') as f:
+            pickle.dump(st.session_state['applied_filters'], f)
+
+    # Save the BERTopic models if they exist in the session state
+    if 'kmeans_bertopic_model' in st.session_state:
+        with open(f'{directory}/{file_name}_model_kmeans.pickle', 'wb') as f:
+            pickle.dump(st.session_state['kmeans_bertopic_model'], f)
+
+    if 'topic_model_hdbscan' in st.session_state:
+        with open(f'{directory}/{file_name}_model_hdbscan.pickle', 'wb') as f:
+            pickle.dump(st.session_state['topic_model_hdbscan'], f)
+            
+    if 'hdbscan_results_df' in st.session_state:
+        with pd.ExcelWriter(f'{directory}/{file_name}_cluster_results.xlsx') as writer:
+            st.session_state['hdbscan_results_df'].to_excel(writer)
+    
+    
 def fit_kmeans_and_get_metrics(df, embedding_col_name, min_clusters, max_clusters):
     metrics_list = []
     embeddings = np.vstack(df[embedding_col_name].values)
@@ -127,6 +152,50 @@ def plot_metrics(metrics_df):
         )
     )
     return fig
+
+
+def calculate_cluster_metrics(df, col1, col2):
+    from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+
+    # Calculate metrics
+    ari = adjusted_rand_score(df[col1], df[col2])
+    nmi = normalized_mutual_info_score(df[col1], df[col2])
+
+    # Create a DataFrame to hold the results
+    metrics_df = pd.DataFrame({
+        'Adjusted Rand Index': [ari],
+        'Normalized Mutual Information': [nmi]
+    })
+
+    return metrics_df
+
+
+def plot_heatmap(df, col1, col2):
+    # Truncate col1 and col2 to 30 characters
+    df[col1] = df[col1].apply(lambda x: (x[:27] + '...') if len(x) > 30 else x)
+    df[col2] = df[col2].apply(lambda x: (x[:27] + '...') if len(x) > 30 else x)
+
+    # Generate crosstab counts
+    crosstab_counts = pd.crosstab(df[col1], df[col2])
+
+    # Create heatmap
+    fig = go.Figure(data=go.Heatmap(
+        z=crosstab_counts.values,
+        x=crosstab_counts.columns,
+        y=crosstab_counts.index,
+        colorscale='Viridis'))
+
+    # Add layout details
+    fig.update_layout(
+        title="Heatmap of Crosstab Counts",
+        xaxis_title=col1,
+        yaxis_title=col2,
+        autosize=False,
+        width=1200,
+        height=800)
+
+    return fig
+
 
 
 def apply_tsne(df, embedding_col_name):
@@ -303,13 +372,30 @@ def fit_bertopic_and_get_labels_hdbscan(df):
         metric='cosine',
         angular_rp_forest=True, 
         random_state=42)
-    representation_model = OpenAI(model="gpt-3.5-turbo-16k", chat=True, nr_docs=30, delay_in_seconds=2)
+    # load_dotenv()
+    # client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    # embedding_model = OpenAIBackend(client, "text-embedding-ada-002")
+    # zeroshot_topic_list = ["Marijuana", "Child Custody", "Insurance Vehicle Claims"]
+    
+    representation_model = OpenAI(model="gpt-3.5-turbo-16k", chat=True, delay_in_seconds=2)
+    
+    seed_topic_list = st.session_state.get('advanced_settings', {}).get('seed_topic_list', "")
+    if not seed_topic_list:
+        seed_topic_list = None
+        
+    # Check the value of the widget and set 'nr_topics' accordingly
+    nr_topics = 'auto' if st.session_state.get('advanced_settings', {}).get('nr_topics', False) else None
+
     
     topic_model = BERTopic(
-        nr_topics='auto',
+        nr_topics=nr_topics,
         umap_model=umap_model,
         vectorizer_model=vectorizer_model,
         representation_model=representation_model,
+        seed_topic_list=seed_topic_list,
+        # zeroshot_topic_list=zeroshot_topic_list,
+        # zeroshot_min_similarity=.85,
+        # embedding_model=embedding_model,
         verbose=False)
     
     topics, _ = topic_model.fit_transform(docs, embeds)
@@ -338,7 +424,7 @@ def fit_bertopic_and_get_labels_kmeans(df, n_clusters):
     vectorizer_model = CountVectorizer(min_df=5, stop_words = 'english')
     empty_dimensionality_model = BaseDimensionalityReduction()
     cluster_model = KMeans(n_clusters=n_clusters, n_init='auto', random_state=42)
-    representation_model = OpenAI(model="gpt-3.5-turbo-16k", chat=True, nr_docs=30, delay_in_seconds=3)
+    representation_model = OpenAI(model="gpt-3.5-turbo-16k", chat=True, nr_docs=20, delay_in_seconds=3)
     
     topic_model = BERTopic(
         hdbscan_model=cluster_model,
@@ -453,6 +539,10 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
+    # Initialize the dictionary in the session state if it doesn't exist
+    if 'applied_filters' not in st.session_state:
+        st.session_state['applied_filters'] = {}
+
     for col in df.columns:
         if is_object_dtype(df[col]):
             try:
@@ -477,6 +567,7 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                     default=list(df[column].unique()),
                 )
                 df = df[df[column].isin(user_cat_input)]
+                st.session_state['applied_filters'][column] = user_cat_input  # Update the session state
             elif is_numeric_dtype(df[column]):
                 _min = float(df[column].min())
                 _max = float(df[column].max())
@@ -489,6 +580,7 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                     step=step,
                 )
                 df = df[df[column].between(*user_num_input)]
+                st.session_state['applied_filters'][column] = user_num_input  # Update the session state
             elif is_datetime64_any_dtype(df[column]):
                 user_date_input = right.date_input(
                     f"Values for {column}",
@@ -501,12 +593,14 @@ def filter_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                     user_date_input = tuple(map(pd.to_datetime, user_date_input))
                     start_date, end_date = user_date_input
                     df = df.loc[df[column].between(start_date, end_date)]
+                    st.session_state['applied_filters'][column] = user_date_input  # Update the session state
             else:
                 user_text_input = right.text_input(
                     f"Substring or regex in {column}",
                 )
                 if user_text_input:
                     df = df[df[column].astype(str).str.contains(user_text_input)]
+                    st.session_state['applied_filters'][column] = user_text_input  # Update the session state
 
     return df
 
@@ -540,15 +634,48 @@ def main():
                         """)
         st.markdown("___")
         
-        if 'filtered_df' in st.session_state:
-            dataset = filter_dataframe(st.session_state['filtered_df'])
-        else:
-            dataset = filter_dataframe(st.session_state['df'])
-        paginate_df('Selected', dataset, 'df')
-        if st.button("Confirm Selection"):
-            st.session_state['filtered_df'] = dataset
-        if st.button("Reset Filters"):
-            st.session_state['filtered_df'] = st.session_state['df']
+        filter_tab, param_tab = st.tabs(["Filters", "Parameters"])
+        
+        with filter_tab:
+        
+            if 'filtered_df' in st.session_state:
+                dataset = filter_dataframe(st.session_state['filtered_df'])
+            else:
+                dataset = filter_dataframe(st.session_state['df'])
+            paginate_df('Selected', dataset, 'df')
+            if st.button("Confirm Selection"):
+                st.session_state['filtered_df'] = dataset
+            if st.button("Reset Filters"):
+                st.session_state['filtered_df'] = st.session_state['df']
+            st.markdown("___")
+        
+            with param_tab:
+                prompt_text = st.text_area("Prompt Text", value="Enter your prompt text here")
+                n_sample_docs = st.number_input("Number of Sample Documents", min_value=1, max_value=100, value=20)
+                
+                with st.expander(label="Advanced Settings", expanded=False):
+                    reduce_hdbscan_clusters = st.checkbox("Reduce HDBSCAN Clusters", value=False)
+                    min_topic_size = st.number_input("Minimum Topic Size", min_value=1, max_value=100, value=10)
+                    nr_topics = st.number_input("Number of Topics", min_value=1, max_value=100, value=10)
+                    n_neighbors = st.number_input("Number of Neighbors", min_value=1, max_value=100, value=15)
+                    n_components = st.number_input("Number of Components", min_value=1, max_value=100, value=5)
+                    num_seed_topics = st.number_input("Number of Seed Topics", min_value=1, max_value=10, value=3)
+                    seed_topic_list = []
+                    for i in range(num_seed_topics):
+                        seed_topic = st.text_input(f"Seed Topic {i+1}", help="Enter your seed topic here").split(',')
+                        seed_topic_list.append(seed_topic)
+                    st.session_state['advanced_settings'] = {
+                        'prompt_text': prompt_text,
+                        'n_sample_docs': n_sample_docs,
+                        'reduce_hdbscan_clusters': reduce_hdbscan_clusters,
+                        'min_topic_size': min_topic_size,
+                        'nr_topics': nr_topics,
+                        'n_neighbors': n_neighbors,
+                        'n_components': n_components,
+                        'seed_topic_list': seed_topic_list
+                    }
+
+                st.markdown("___")
 
     # Main app functionality to guide users through a clustering analysis
     elif tab == "K-Means Cluster Evaluation":
@@ -705,12 +832,12 @@ def main():
                 st.markdown("`Please Note: You can unselect the button to re-start the analysis anytime`")
                 with st.status("Generating clusters...", expanded=True) as status:
                     # Check if clustering results are already calculated for the given range
-                    if 'hdbscan_results_df' not in st.session_state:
-                        st.session_state['hdbscan_results_df'], cluster_info, topic_model_hdbscan = fit_bertopic_and_get_labels_hdbscan(st.session_state['embeddings_df'])
-                    if 'cluster_info' not in st.session_state:
-                        st.session_state['cluster_info'] = cluster_info    
-                    if 'topic_model_hdbscan' not in st.session_state:
-                        st.session_state['topic_model_hdbscan'] = topic_model_hdbscan
+                    # if 'hdbscan_results_df' not in st.session_state:
+                    st.session_state['hdbscan_results_df'], cluster_info, topic_model_hdbscan = fit_bertopic_and_get_labels_hdbscan(st.session_state['embeddings_df'])
+                    # if 'cluster_info' not in st.session_state:
+                    st.session_state['cluster_info'] = cluster_info    
+                    # if 'topic_model_hdbscan' not in st.session_state:
+                    st.session_state['topic_model_hdbscan'] = topic_model_hdbscan
 
                     hdbscan_result_str = st.session_state['cluster_info'].to_string(index=False)
                     if "hdbscan_result_str" not in st.session_state:
@@ -784,6 +911,93 @@ def main():
     1. **Run Report**
     """)
         st.markdown("___")
+        
+        heatmap = plot_heatmap(st.session_state['hdbscan_results_df'], "topic_title", "Topic_Label")
+        st.plotly_chart(heatmap)
+    
+        # Use faker to add dummy dates to 'hdbscan_results_df'
+        from faker import Faker
+        fake = Faker()
+        date_list = [fake.date_between(start_date='-3y', end_date='today') for _ in range(len(st.session_state['hdbscan_results_df']))]
+        st.session_state['hdbscan_results_df']['date'] = date_list
+
+
+        def plot_bubble_topics_over_time(df, timestamp_col, label_col, probability_col, time_freq='M', plot_width=1200, plot_height=800):
+            """
+            Plots the topics over time using a bubble chart with Plotly, where bubble size reflects count, opacity reflects mean probability,
+            and colors are mapped to labels using the 'viridis' colormap from matplotlib.
+            """
+            df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+            df['period'] = df[timestamp_col].dt.to_period(time_freq)
+
+            max_bubble_size = 50
+
+            # Group by period and topic label, calculate count and mean probability
+            grouped_df = df.groupby(['period', label_col]).agg(
+                count=('period', 'size'),
+                mean_probability=(probability_col, 'mean')
+            ).reset_index()
+
+            # Rank topics within each period based on weighted count
+            grouped_df['weighted_count'] = grouped_df['count'] * grouped_df['mean_probability']
+            grouped_df['rank'] = grouped_df.groupby('period')['weighted_count'].rank("dense", ascending=False)
+
+            # Normalize opacity
+            max_prob = grouped_df['mean_probability'].max()
+            grouped_df['opacity'] = grouped_df['mean_probability'] / max_prob
+
+            # Assign colors to labels using matplotlib's 'viridis' colormap
+            unique_labels = grouped_df[label_col].unique()
+            viridis = cm.get_cmap('viridis', len(unique_labels))
+            color_map = {label: viridis(i)[:3] for i, label in enumerate(unique_labels)}
+
+            fig = go.Figure()
+
+            for topic in unique_labels:
+                display_label = (topic[:37] + '...') if len(topic) > 40 else topic
+                topic_data = grouped_df[grouped_df[label_col] == topic]
+                fig.add_trace(go.Scatter(
+                    x=topic_data['period'].dt.to_timestamp(),
+                    y=topic_data['rank'],
+                    text=topic_data[label_col],
+                    hoverinfo='text+x+y',
+                    mode='markers',
+                    marker=dict(
+                        size=topic_data['count'],
+                        sizemode='area',
+                        sizeref=2.*max(grouped_df['count'])/(max_bubble_size**2),
+                        sizemin=4,
+                        opacity=topic_data['opacity'],
+                        color='rgb' + str(color_map[topic])  # Convert color to RGB format
+                    ),
+                    name=display_label
+                ))
+
+            fig.update_layout(
+                title="Topics Over Time (Bubble Plot)",
+                xaxis=dict(
+                    title="Time Period",
+                    tickmode='auto',
+                    nticks=20,
+                    tickformat='%Y-%m'
+                ),
+                yaxis=dict(
+                    title="Topic Rank",
+                    autorange="reversed"
+                ),
+                template="plotly",
+                showlegend=True,
+                height=plot_height,
+                width=plot_width
+            )
+
+            return fig
+        
+        df = st.session_state['hdbscan_results_df']
+        df_ = df[df["Topic"]!="0"]
+        bubble_plot = plot_bubble_topics_over_time(df_, "date", "Topic_Label", "Probability", time_freq='Y')
+        st.plotly_chart(bubble_plot)
+        
         if stateful_button.button("Run Clustering Report", key="run_final_report"):
             with st.status("Generating report...", expanded=False) as status:
         
@@ -808,6 +1022,118 @@ def main():
                     file_name='guided_clustering_results.csv',
                     mime='text/csv',
                 )
+        
+        save_session = st.button("Save Session State", on_click=save_session_state(directory="guided_clustering", file_name="dev_test"))
 
+        # Create a multiselect widget for the user to select up to 10 columns
+        selected_columns = st.multiselect(
+            'Select up to 10 columns', 
+            options=list(st.session_state['hdbscan_results_df'].columns))
+        
+        # If the user has made a selection
+        if selected_columns:
+            # Create a new dataframe with the selected columns
+            user_df = st.session_state['hdbscan_results_df'][selected_columns]
+            # Save the new dataframe to the session state
+            st.session_state['user_df'] = user_df
+            # Hide the multiselect widget
+            st.empty()
+        
+            if st.session_state["user_df"] is not None:
+                st.dataframe(st.session_state['user_df'])
+                
+            from langchain.embeddings.openai import OpenAIEmbeddings
+            from llama_index.llms import OpenAI
+            from llama_index import VectorStoreIndex, ServiceContext, StorageContext, load_index_from_storage
+            from llama_index.schema import TextNode
+            from sqlalchemy import create_engine, insert, MetaData, Table, Column, String, Integer
+            from llama_index import SQLDatabase
+            from llama_index.indices.struct_store import (
+                NLSQLTableQueryEngine,
+            )
+            
+            
+            def create_sql_database(user_df):                
+                # Create a new SQL database in memory
+                engine = create_engine("sqlite:///:memory:")
+                metadata = MetaData()
+                
+                # Define the columns for the new table based on the user_df dataframe
+                columns = []
+                for col_name, dtype in user_df.dtypes.items():
+                    if dtype == 'int64':
+                        columns.append(Column(col_name, Integer))
+                    else:
+                        columns.append(Column(col_name, String))
+                
+                # Create the new table
+                user_table = Table("cluster_results_table", metadata, *columns)
+                metadata.create_all(engine)
+                
+                # Insert the data from the user_df dataframe into the new table
+                with engine.begin() as connection:
+                    for _, row in user_df.iterrows():
+                        stmt = insert(user_table).values(**row.to_dict())
+                        connection.execute(stmt)
+                
+                # Create the SQLDatabase object
+                sql_database = SQLDatabase(engine, include_tables=["cluster_results_table"])
+                
+                return sql_database
+            
+            sql_database = create_sql_database(user_df[selected_columns])
+            sql_query_engine = NLSQLTableQueryEngine(sql_database)
+            
+            
+            # embeddings = OpenAIEmbeddings()
+            
+            # def create_nodes(df, text_col, embedding_col, metadata_cols):
+            #     nodes = []
+            #     for _, row in df.iterrows():
+            #         metadata = {col: row[col] for col in metadata_cols}
+            #         node = TextNode(
+            #             text=row[text_col],
+            #             embedding=list(row[embedding_col]),
+            #             metadata=metadata)
+            #         nodes.append(node)
+            #     return nodes
+            
+            # nodes = create_nodes(
+            #     st.session_state['user_df'], 
+            #     TEXT_COL_NAME, 
+            #     EMBEDDING_COL_NAME,
+            #     ['Topic_Label', 'State', 'text_label']
+            #     )
+            
+            # service_context = ServiceContext.from_defaults(llm=OpenAI(model="gpt-3.5-turbo", temperature=0))
+            
+            # try:
+            #     index = load_index_from_storage(StorageContext.from_defaults(persist_dir="./streamlit_clusters"))
+            # except:
+            
+            #     storage_context = StorageContext.from_defaults()
+            #     storage_context.docstore.add_documents(nodes)
+            #     index = VectorStoreIndex(
+            #         nodes,
+            #         service_context=service_context,
+            #         storage_context=storage_context,
+            #         )
+            #     storage_context.persist(persist_dir="./streamlit_clusters")
+
+            prompt = st.text_input("Ask...")
+            if prompt:
+                response = sql_query_engine.query(f"{prompt} - If possible end with a markdown table.")
+                
+                if 'sql_query' in response.metadata:
+                    st.write(response.metadata['sql_query'])
+                st.write(response.response)
+                
+            
+            
+        
+
+                     
+            
+            
 main()
 
