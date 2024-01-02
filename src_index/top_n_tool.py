@@ -139,46 +139,46 @@ def get_llm_fact_pattern_summary(df: pd.DataFrame, text_col_name: str) -> pd.Dat
 
 
 
-def rerank_with_cross_encoder(df: pd.DataFrame,
-                              query: str, 
-                              text_col_name: str = "summary",
-                              model_name: str = 'BAAI/bge-reranker-large',
-    ) -> pd.DataFrame:
-    """
-    A function to rerank search results using pre-trained cross-encoder
+# def rerank_with_cross_encoder(df: pd.DataFrame,
+#                               query: str, 
+#                               text_col_name: str = "summary",
+#                               model_name: str = 'BAAI/bge-reranker-large',
+#     ) -> pd.DataFrame:
+#     """
+#     A function to rerank search results using pre-trained cross-encoder
     
-    On models:
-    Base models are listed below. More info here: https://www.sbert.net/docs/pretrained-models/ce-msmarco.html
+#     On models:
+#     Base models are listed below. More info here: https://www.sbert.net/docs/pretrained-models/ce-msmarco.html
     
-    Example: rerank_res_df = rerank_with_cross_encoder(top_n_res_df, query, 'summary')
+#     Example: rerank_res_df = rerank_with_cross_encoder(top_n_res_df, query, 'summary')
     
-    Args:
-        df (pd.DataFrame): Results from `get_llm_fact_pattern_summary`.
-        text_col_name (str): The column of text to embed. Defaults to "summary". 
-    Returns:
-        pd.DataFrame: Input df sorted based on Instructor embeddings re-ranking.
-    """
-    # Initialize the model and tokenizer
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    # Prepare the data for the model
-    query_df = pd.DataFrame({"query": [query]})
-    query_fact_pattern_df = get_llm_fact_pattern_summary(df=query_df, text_col_name="query")
-    query_proc = query_fact_pattern_df["summary"].iloc[0]  
-    data = [(query_proc, text) for text in df[text_col_name].tolist()]
-    # Tokenize the data
-    features = tokenizer(*zip(*data), padding=True, truncation=True, return_tensors="pt")
-    # Predict the scores
-    model.eval()
-    with torch.no_grad():
-        scores = model(**features).logits
-    # Convert scores to numpy array
-    scores = scores.detach().numpy()
-    # Add the scores to the dataframe
-    df['scores'] = scores
-    # Sort the dataframe by the scores in descending order
-    df = df.sort_values(by='scores', ascending=False)
-    return df
+#     Args:
+#         df (pd.DataFrame): Results from `get_llm_fact_pattern_summary`.
+#         text_col_name (str): The column of text to embed. Defaults to "summary". 
+#     Returns:
+#         pd.DataFrame: Input df sorted based on Instructor embeddings re-ranking.
+#     """
+#     # Initialize the model and tokenizer
+#     model = AutoModelForSequenceClassification.from_pretrained(model_name)
+#     tokenizer = AutoTokenizer.from_pretrained(model_name)
+#     # Prepare the data for the model
+#     query_df = pd.DataFrame({"query": [query]})
+#     query_fact_pattern_df = get_llm_fact_pattern_summary(df=query_df, text_col_name="query")
+#     query_proc = query_fact_pattern_df["summary"].iloc[0]  
+#     data = [(query_proc, text) for text in df[text_col_name].tolist()]
+#     # Tokenize the data
+#     features = tokenizer(*zip(*data), padding=True, truncation=True, return_tensors="pt")
+#     # Predict the scores
+#     model.eval()
+#     with torch.no_grad():
+#         scores = model(**features).logits
+#     # Convert scores to numpy array
+#     scores = scores.detach().numpy()
+#     # Add the scores to the dataframe
+#     df['scores'] = scores
+#     # Sort the dataframe by the scores in descending order
+#     df = df.sort_values(by='scores', ascending=False)
+#     return df
 
 
 

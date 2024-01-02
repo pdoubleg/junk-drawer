@@ -4,12 +4,12 @@ from pydantic import BaseModel, Field, validator
 from dotenv import load_dotenv
 
 from pydantic import BaseModel, Field
-from typing import Optional, Type
+from typing import Any, Dict, Optional, Type
 from semantic_search import SemanticSearch
 from top_n_tool import (
     extract_citation_numbers_in_brackets,
     get_llm_fact_pattern_summary, 
-    rerank_with_cross_encoder, 
+    # rerank_with_cross_encoder, 
     create_formatted_input, 
     add_month_year_to_df,
     get_final_answer,
@@ -23,27 +23,21 @@ from langchain.callbacks.manager import CallbackManagerForToolRun, AsyncCallback
 # Tool default values
 MODEL_NAME = "gpt-4"
 TOKEN_LIMIT = 5500
+TOP_N = 10
 DATA_PATH = "reddit_legal_cluster_test_results.parquet"
 
 
 class ResearchSchema(BaseModel):
     query: str = Field(description="the exact text the user wants to query")
-    ton_n: Optional[int] = Field(description="should be a number")
-    model_name: Optional[str] = Field(description="should be an OpenAI model name")
-    context_token_limit: Optional[int] = Field(description="should be a number")
+    filter: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class ResearchPastQuestions(BaseTool):
-    df: pd.DataFrame = Field(...)
+    df: Optional[pd.DataFrame]
 
-    @validator('df')
-    def must_be_a_dataframe(cls, v):
-        if not isinstance(v, pd.DataFrame):
-            raise ValueError('df must be a pandas DataFrame')
-        return v
-
-    def __init__(self, **data):
+    def __init__(self, data_path: str = DATA_PATH, **data):
         super().__init__(**data)
+        self.df = pd.read_parquet(data_path)
     name = "Research Past Questions"
     description = "useful for finding top n most similar text for a specified query. if given a query it should be passed to this tool unedited."
     return_direct = False
@@ -62,7 +56,8 @@ class ResearchPastQuestions(BaseTool):
     def _run(
         self, 
         user_query: str, 
-        top_n: int = 10, 
+        filter: Optional[Dict[str, Any]] = None,
+        top_n: int = TOP_N, 
         model_name: str = MODEL_NAME, 
         context_token_limit: int = TOKEN_LIMIT,
         run_manager: Optional[CallbackManagerForToolRun] = None
@@ -72,10 +67,11 @@ class ResearchPastQuestions(BaseTool):
         
         Args:
             user_query (str): The user's text query.
+            filter (dict): A dictionary of filter columns (keys) and values.
             model_name (str): The name of the model to use.
-            token_limit (int): The maximum number of tokens for the context.
+            context_token_limit (int): The maximum number of tokens for the context.
         Returns:
-            str: A string containing the user query, model response, and cited sources.
+            str: A string containing the results of the full pipeline.
         """
 
         load_dotenv()
@@ -88,7 +84,7 @@ class ResearchPastQuestions(BaseTool):
         top_n_res_df = search_engine.query_similar_documents(
             user_query,
             top_n = top_n,
-            filter_criteria = None,
+            filter_criteria = filter,
             use_cosine_similarity = True,
             similarity_threshold = 0.92)
 
@@ -100,15 +96,15 @@ class ResearchPastQuestions(BaseTool):
             return
 
         # Run rerank_with_cross_encoder
-        try:
-            rerank_res_df = rerank_with_cross_encoder(top_n_res_df, user_query, 'summary')
-        except Exception as e:
-            raise ToolException(f"Error in rerank_with_cross_encoder: {e}")
-            return
+        # try:
+        #     rerank_res_df = rerank_with_cross_encoder(top_n_res_df, user_query, 'summary')
+        # except Exception as e:
+        #     raise ToolException(f"Error in rerank_with_cross_encoder: {e}")
+        #     return
 
         # Run create_formatted_input
         try:
-            formatted_input = create_formatted_input(rerank_res_df, user_query, context_token_limit=context_token_limit)
+            formatted_input = create_formatted_input(top_n_res_df, user_query, context_token_limit=context_token_limit)
         except Exception as e:
             raise ToolException(f"Error in create_formatted_input: {e}")
             return
@@ -120,7 +116,7 @@ class ResearchPastQuestions(BaseTool):
             raise ToolException(f"Error in get_final_answer: {e}")
             return
         
-        rerank_res_df = add_month_year_to_df(rerank_res_df, "datestamp")
+        rerank_res_df = add_month_year_to_df(top_n_res_df, "datestamp")
         # Create a string containing the user query, model response, and cited sources
         result = f"## New Query:\n{user_query}\n## Model Response:\n{response}\n"
         result += "___\n"
@@ -129,10 +125,7 @@ class ResearchPastQuestions(BaseTool):
             i = int(citation) - 1  # convert string to int and adjust for 0-indexing
             title = rerank_res_df.iloc[i]["llm_title"]
             link = f"{rerank_res_df.iloc[i]['full_link']}"
-            venue = rerank_res_df.iloc[i]["State"]
-            date = rerank_res_df.iloc[i]["datestamp"]
-            number = rerank_res_df.iloc[i]["index"]
-            result += f"**{[i+1]} [{title}]({link})** - {venue}, {date}\n\n"
+            result += f"**{[i+1]} [{title}]({link})**\n\n"
 
         result += "___"
         return result
@@ -141,11 +134,12 @@ class ResearchPastQuestions(BaseTool):
     async def _arun(
         self, 
         user_query: str, 
-        top_n: int = 5, 
+        filter: Optional[Dict[str, Any]] = None,
+        top_n: int = TOP_N, 
         model_name: str = MODEL_NAME, 
         context_token_limit: int = TOKEN_LIMIT,
         run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> str:
         """Use the tool asynchronously."""
-        raise NotImplementedError("research_past_questions does not support async")
+        raise NotImplementedError("ResearchPastQuestions does not support async")
     
